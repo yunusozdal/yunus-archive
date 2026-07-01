@@ -20,7 +20,7 @@ export default function Card({
   onFavorite,
   onOpen,
 }: CardProps) {
-  const previewUrl = thumbnailUrl || mediaUrl;
+  const hasThumbnail = Boolean(thumbnailUrl);
 
   return (
     <div
@@ -29,13 +29,33 @@ export default function Card({
       style={{ marginBottom: "4px" }}
     >
       <div className="relative overflow-hidden bg-neutral-100">
-        <img
-          src={previewUrl}
-          alt={title}
-          loading="lazy"
-          decoding="async"
-          className="h-auto w-full transition duration-300 group-hover:scale-[1.02]"
-        />
+        {mediaType === "video" ? (
+          hasThumbnail ? (
+            <img
+              src={thumbnailUrl || ""}
+              alt={title}
+              loading="lazy"
+              decoding="async"
+              className="h-auto w-full transition duration-300 group-hover:scale-[1.02]"
+            />
+          ) : (
+            <video
+              src={`${mediaUrl}#t=0.2`}
+              muted
+              playsInline
+              preload="metadata"
+              className="pointer-events-none h-auto w-full transition duration-300 group-hover:scale-[1.02]"
+            />
+          )
+        ) : (
+          <img
+            src={thumbnailUrl || mediaUrl}
+            alt={title}
+            loading="lazy"
+            decoding="async"
+            className="h-auto w-full transition duration-300 group-hover:scale-[1.02]"
+          />
+        )}
 
         {mediaType === "video" && (
           <div className="absolute inset-0 flex items-center justify-center">
