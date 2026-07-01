@@ -166,71 +166,133 @@ export default function UploadButton() {
       const video = document.createElement("video");
       const objectUrl = URL.createObjectURL(file);
 
-      video.src = objectUrl;
+      let resolved = false;
+
+      function finish(result: File | null) {
+        if (resolved) return;
+
+        resolved = true;
+        URL.revokeObjectURL(objectUrl);
+
+        if (video.parentNode) {
+          video.parentNode.removeChild(video);
+        }
+
+        resolve(result);
+      }
+
+      const timeout = window.setTimeout(() => {
+        finish(null);
+      }, 10000);
+
+      async function captureFrame() {
+        try {
+          const videoWidth = video.videoWidth || 900;
+          const videoHeight = video.videoHeight || 1200;
+
+          if (!videoWidth || !videoHeight) {
+            window.clearTimeout(timeout);
+            finish(null);
+            return;
+          }
+
+          const maxWidth = 900;
+          const ratio = videoWidth / videoHeight;
+
+          let width = videoWidth;
+          let height = videoHeight;
+
+          if (width > maxWidth) {
+            width = maxWidth;
+            height = Math.round(width / ratio);
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext("2d");
+
+          if (!ctx) {
+            window.clearTimeout(timeout);
+            finish(null);
+            return;
+          }
+
+          ctx.drawImage(video, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              window.clearTimeout(timeout);
+
+              if (!blob) {
+                finish(null);
+                return;
+              }
+
+              const thumbnailFile = new File(
+                [blob],
+                `${getTitleFromFileName(file.name)}-thumbnail.webp`,
+                {
+                  type: "image/webp",
+                  lastModified: file.lastModified,
+                }
+              );
+
+              finish(thumbnailFile);
+            },
+            "image/webp",
+            0.8
+          );
+        } catch (error) {
+          console.error("Thumbnail capture error:", error);
+          window.clearTimeout(timeout);
+          finish(null);
+        }
+      }
+
       video.muted = true;
       video.playsInline = true;
-      video.preload = "metadata";
+      video.preload = "auto";
+      video.src = objectUrl;
+
+      video.style.position = "fixed";
+      video.style.left = "-9999px";
+      video.style.top = "-9999px";
+      video.style.width = "1px";
+      video.style.height = "1px";
+      video.style.opacity = "0";
+
+      document.body.appendChild(video);
 
       video.onloadedmetadata = () => {
-        video.currentTime = Math.min(0.5, video.duration || 0.5);
+        try {
+          const targetTime = video.duration
+            ? Math.min(1, video.duration / 10)
+            : 0.3;
+
+          video.currentTime = targetTime;
+        } catch {
+          captureFrame();
+        }
+      };
+
+      video.onloadeddata = () => {
+        if (!video.duration || video.duration === Infinity) {
+          captureFrame();
+        }
       };
 
       video.onseeked = () => {
-        const canvas = document.createElement("canvas");
-
-        const maxWidth = 900;
-        const ratio = video.videoWidth / video.videoHeight;
-
-        let width = video.videoWidth;
-        let height = video.videoHeight;
-
-        if (width > maxWidth) {
-          width = maxWidth;
-          height = Math.round(width / ratio);
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext("2d");
-
-        if (!ctx) {
-          URL.revokeObjectURL(objectUrl);
-          resolve(null);
-          return;
-        }
-
-        ctx.drawImage(video, 0, 0, width, height);
-
-        canvas.toBlob(
-          (blob) => {
-            URL.revokeObjectURL(objectUrl);
-
-            if (!blob) {
-              resolve(null);
-              return;
-            }
-
-            const thumbnailFile = new File(
-              [blob],
-              `${getTitleFromFileName(file.name)}-thumbnail.webp`,
-              {
-                type: "image/webp",
-                lastModified: file.lastModified,
-              }
-            );
-
-            resolve(thumbnailFile);
-          },
-          "image/webp",
-          0.8
-        );
+        captureFrame();
       };
 
       video.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        resolve(null);
+        window.clearTimeout(timeout);
+        finish(null);
       };
+
+      video.load();
     });
   }
 
@@ -283,7 +345,7 @@ export default function UploadButton() {
         }
 
         if (isVideo) {
-          setMessage(`${file.name} için video önizlemesi hazırlanıyor...`);
+          setMessage(`${file.name} için video kapağı hazırlanıyor...`);
 
           const thumbnailFile = await createVideoThumbnail(file);
 
@@ -300,7 +362,7 @@ export default function UploadButton() {
         const title = getTitleFromFileName(file.name);
         const mediaDate = formatFileDate(file);
 
-        if (!thumbnailUrl && mediaType === "image") {
+        if (mediaType === "image") {
           thumbnailUrl = mediaUrl;
         }
 
@@ -317,11 +379,13 @@ export default function UploadButton() {
         });
       } catch (error) {
         console.error("Upload error:", error);
+
         setMessage(
           error instanceof Error
             ? `Upload failed: ${error.message}`
             : "Upload failed."
         );
+
         setLoading(false);
         return;
       }
@@ -470,6 +534,7 @@ export default function UploadButton() {
                           <video
                             src={url}
                             controls
+                            playsInline
                             className="h-40 w-full object-contain"
                           />
                         ) : (
