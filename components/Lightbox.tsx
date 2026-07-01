@@ -1,0 +1,84 @@
+type Work = {
+  id: string;
+  title: string;
+  media_date?: string | null;
+  media_url: string;
+  media_type: "image" | "video";
+};
+
+type LightboxProps = {
+  work: Work | null;
+  onClose: () => void;
+  onDelete: () => void;
+};
+
+export default function Lightbox({ work, onClose, onDelete }: LightboxProps) {
+  if (!work) return null;
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 px-4 py-8 backdrop-blur-sm"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative max-h-[90vh] w-full max-w-6xl overflow-hidden rounded-3xl border border-neutral-200 bg-white"
+      >
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 z-10 rounded-full bg-white px-3 py-2 text-sm text-red-600 transition hover:bg-red-50"
+        >
+          ✕
+        </button>
+
+        <div className="flex max-h-[78vh] items-center justify-center bg-neutral-100">
+          {work.media_type === "video" ? (
+            <video
+              src={work.media_url}
+              controls
+              autoPlay
+              className="max-h-[78vh] w-full object-contain"
+            />
+          ) : (
+            <img
+              src={work.media_url}
+              alt={work.title}
+              className="max-h-[78vh] w-full object-contain"
+            />
+          )}
+        </div>
+
+        <div className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-neutral-950">
+              {work.title}
+            </h2>
+
+            {work.media_date && (
+              <p className="mt-1 text-sm text-neutral-500">
+                {work.media_date}
+              </p>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={onDelete}
+              className="rounded-full border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+            >
+              Delete
+            </button>
+
+            <a
+              href={work.media_url}
+              target="_blank"
+              className="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+            >
+              Open
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
