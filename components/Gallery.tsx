@@ -23,14 +23,38 @@ export default function Gallery({ isAdmin }: GalleryProps) {
   const [works, setWorks] = useState<Work[]>([]);
   const [selectedWork, setSelectedWork] = useState<Work | null>(null);
 
+  function parseMediaDate(dateString?: string | null) {
+    if (!dateString) return 0;
+
+    const [day, month, year] = dateString.split(".").map(Number);
+
+    if (!day || !month || !year) return 0;
+
+    return new Date(year, month - 1, day).getTime();
+  }
+
   async function loadWorks() {
     const data = await getWorks();
 
-    const normalized = (data as Work[]).map((work) => ({
-      ...work,
-      media_url: work.media_url || work.image_url || "",
-      media_type: work.media_type || "image",
-    }));
+    const normalized = (data as Work[])
+      .map((work) => ({
+        ...work,
+        media_url: work.media_url || work.image_url || "",
+        media_type: work.media_type || "image",
+      }))
+      .sort((a, b) => {
+        const dateA = parseMediaDate(a.media_date);
+        const dateB = parseMediaDate(b.media_date);
+
+        if (dateA !== dateB) {
+          return dateB - dateA;
+        }
+
+        return (
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+        );
+      });
 
     setWorks(normalized);
   }
