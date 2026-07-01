@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Card from "./Card";
 import Lightbox from "./Lightbox";
 import { deleteWork, getWorks, toggleFavorite } from "../lib/storage";
@@ -24,9 +24,6 @@ export default function Gallery({ isAdmin }: GalleryProps) {
   const [works, setWorks] = useState<Work[]>([]);
   const [selectedWork, setSelectedWork] = useState<Work | null>(null);
   const [columnCount, setColumnCount] = useState(2);
-  const [visibleCount, setVisibleCount] = useState(24);
-  const [pageSize, setPageSize] = useState(12);
-  const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
     function updateLayout() {
@@ -34,17 +31,10 @@ export default function Gallery({ isAdmin }: GalleryProps) {
 
       if (width < 640) {
         setColumnCount(2);
-        setPageSize(12);
-        setVisibleCount(24);
-        setIsDesktop(false);
       } else if (width < 1024) {
         setColumnCount(3);
-        setPageSize(18);
-        setVisibleCount(36);
-        setIsDesktop(false);
       } else {
         setColumnCount(5);
-        setIsDesktop(true);
       }
     }
 
@@ -114,14 +104,6 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     loadWorks();
   }, []);
 
-  const visibleWorks = useMemo(() => {
-    if (isDesktop) {
-      return works;
-    }
-
-    return works.slice(0, visibleCount);
-  }, [works, visibleCount, isDesktop]);
-
   async function handleFavorite(work: Work) {
     const success = await toggleFavorite(work.id, Boolean(work.favorite));
 
@@ -164,8 +146,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     setSelectedWork(null);
   }
 
-  const columns = createColumns(visibleWorks);
-  const hasMore = !isDesktop && visibleCount < works.length;
+  const columns = createColumns(works);
   const gap = columnCount === 2 ? "6px" : "8px";
 
   return (
@@ -175,50 +156,37 @@ export default function Gallery({ isAdmin }: GalleryProps) {
           Henüz bir şey yüklenmedi.
         </div>
       ) : (
-        <div className="space-y-6">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-              gap,
-            }}
-          >
-            {columns.map((column, columnIndex) => (
-              <div
-                key={columnIndex}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap,
-                }}
-              >
-                {column.map((work) => (
-                  <Card
-                    key={work.id}
-                    title={work.title || "Untitled"}
-                    mediaDate={work.media_date}
-                    mediaUrl={work.media_url}
-                    mediaType={work.media_type}
-                    favorite={Boolean(work.favorite)}
-                    canFavorite={isAdmin}
-                    onFavorite={() => handleFavorite(work)}
-                    onOpen={() => setSelectedWork(work)}
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
-
-          {hasMore && (
-            <div className="flex justify-center pt-4">
-              <button
-                onClick={() => setVisibleCount((prev) => prev + pageSize)}
-                className="rounded-full border border-neutral-200 bg-white px-5 py-3 text-sm font-semibold text-neutral-700 transition hover:border-red-300 hover:text-red-600"
-              >
-                Load more
-              </button>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+            gap,
+          }}
+        >
+          {columns.map((column, columnIndex) => (
+            <div
+              key={columnIndex}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap,
+              }}
+            >
+              {column.map((work) => (
+                <Card
+                  key={work.id}
+                  title={work.title || "Untitled"}
+                  mediaDate={work.media_date}
+                  mediaUrl={work.media_url}
+                  mediaType={work.media_type}
+                  favorite={Boolean(work.favorite)}
+                  canFavorite={isAdmin}
+                  onFavorite={() => handleFavorite(work)}
+                  onOpen={() => setSelectedWork(work)}
+                />
+              ))}
             </div>
-          )}
+          ))}
         </div>
       )}
 
