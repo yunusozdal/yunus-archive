@@ -45,6 +45,90 @@ export default function UploadButton() {
     return `${day}.${month}.${year}`;
   }
 
+  function formatMB(bytes: number) {
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  async function compressImage(file: File): Promise<File> {
+    const isImage = file.type.startsWith("image/");
+    const isSvg = file.type === "image/svg+xml";
+    const isGif = file.type === "image/gif";
+
+    if (!isImage || isSvg || isGif) {
+      return file;
+    }
+
+    return new Promise((resolve) => {
+      const image = new Image();
+      const objectUrl = URL.createObjectURL(file);
+
+      image.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+
+        const maxSize = 2200;
+        let width = image.width;
+        let height = image.height;
+
+        if (width > height && width > maxSize) {
+          height = Math.round((height * maxSize) / width);
+          width = maxSize;
+        }
+
+        if (height >= width && height > maxSize) {
+          width = Math.round((width * maxSize) / height);
+          height = maxSize;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        ctx.drawImage(image, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+
+            const compressedFile = new File(
+              [blob],
+              `${getTitleFromFileName(file.name)}.webp`,
+              {
+                type: "image/webp",
+                lastModified: file.lastModified,
+              }
+            );
+
+            if (compressedFile.size >= file.size) {
+              resolve(file);
+              return;
+            }
+
+            resolve(compressedFile);
+          },
+          "image/webp",
+          0.82
+        );
+      };
+
+      image.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file);
+      };
+
+      image.src = objectUrl;
+    });
+  }
+
   async function handleUpload() {
     if (files.length === 0) {
       setMessage("Önce görsel ya da video seç.");
@@ -52,19 +136,34 @@ export default function UploadButton() {
     }
 
     setLoading(true);
-    setMessage("Yükleniyor...");
+    setMessage("Dosyalar hazırlanıyor...");
 
     const rows = [];
 
     for (const file of files) {
-      const safeName = cleanFileName(file.name);
+      const isImage = file.type.startsWith("image/");
+      const uploadFile = isImage ? await compressImage(file) : file;
+
+      if (isImage) {
+        setMessage(
+          `${file.name} sıkıştırıldı: ${formatMB(file.size)} → ${formatMB(
+            uploadFile.size
+          )}`
+        );
+      } else {
+        setMessage(`${file.name} yükleniyor...`);
+      }
+
+      const safeName = cleanFileName(uploadFile.name);
       const fileName = `${Date.now()}-${Math.random()
         .toString(36)
         .slice(2)}-${safeName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("works")
-        .upload(fileName, file);
+        .upload(fileName, uploadFile, {
+          contentType: uploadFile.type,
+        });
 
       if (uploadError) {
         console.error("Upload error:", uploadError);
@@ -75,7 +174,7 @@ export default function UploadButton() {
 
       const { data } = supabase.storage.from("works").getPublicUrl(fileName);
 
-      const mediaType = file.type.startsWith("video") ? "video" : "image";
+      const mediaType = uploadFile.type.startsWith("video") ? "video" : "image";
       const title = getTitleFromFileName(file.name);
       const mediaDate = formatFileDate(file);
 
@@ -109,7 +208,7 @@ export default function UploadButton() {
     setTimeout(() => {
       setOpen(false);
       window.location.reload();
-    }, 600);
+    }, 700);
   }
 
   return (
@@ -131,7 +230,7 @@ export default function UploadButton() {
               <div>
                 <h2 className="text-xl font-semibold">Upload</h2>
                 <p className="mt-1 text-sm text-neutral-500">
-                  Birden fazla görsel veya video yükle.
+                  Görseller otomatik sıkıştırılır. Videolar olduğu gibi yüklenir.
                 </p>
               </div>
 
@@ -192,8 +291,9 @@ export default function UploadButton() {
                           <p className="truncate text-xs text-neutral-700">
                             {file?.name}
                           </p>
+
                           <p className="text-xs text-neutral-400">
-                            {file && formatFileDate(file)}
+                            {file && `${formatMB(file.size)} · ${formatFileDate(file)}`}
                           </p>
                         </div>
                       </div>
