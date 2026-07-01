@@ -1,3 +1,5 @@
+"use client";
+
 type Work = {
   id: string;
   title: string;
@@ -10,9 +12,15 @@ type LightboxProps = {
   work: Work | null;
   onClose: () => void;
   onDelete: () => void;
+  canDelete: boolean;
 };
 
-export default function Lightbox({ work, onClose, onDelete }: LightboxProps) {
+export default function Lightbox({
+  work,
+  onClose,
+  onDelete,
+  canDelete,
+}: LightboxProps) {
   if (!work) return null;
 
   return (
@@ -62,16 +70,19 @@ export default function Lightbox({ work, onClose, onDelete }: LightboxProps) {
           </div>
 
           <div className="flex gap-2">
-            <button
-              onClick={onDelete}
-              className="rounded-full border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
-            >
-              Delete
-            </button>
+            {canDelete && (
+              <button
+                onClick={onDelete}
+                className="rounded-full border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+              >
+                Delete
+              </button>
+            )}
 
             <a
               href={work.media_url}
               target="_blank"
+              rel="noreferrer"
               className="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
             >
               Open

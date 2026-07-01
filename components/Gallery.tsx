@@ -15,7 +15,11 @@ type Work = {
   created_at: string;
 };
 
-export default function Gallery() {
+type GalleryProps = {
+  isAdmin: boolean;
+};
+
+export default function Gallery({ isAdmin }: GalleryProps) {
   const [works, setWorks] = useState<Work[]>([]);
   const [selectedWork, setSelectedWork] = useState<Work | null>(null);
 
@@ -51,7 +55,7 @@ export default function Gallery() {
   return (
     <>
       {works.length === 0 ? (
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-10 text-center text-neutral-500">
+        <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center text-neutral-500">
           Henüz bir şey yüklenmedi.
         </div>
       ) : (
@@ -73,6 +77,7 @@ export default function Gallery() {
         work={selectedWork}
         onClose={() => setSelectedWork(null)}
         onDelete={handleDelete}
+        canDelete={isAdmin}
       />
     </>
   );
