@@ -12,6 +12,23 @@ export default function UploadButton() {
   const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
+    if (!open) return;
+
+    function preventBrowserOpen(event: DragEvent) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    window.addEventListener("dragover", preventBrowserOpen);
+    window.addEventListener("drop", preventBrowserOpen);
+
+    return () => {
+      window.removeEventListener("dragover", preventBrowserOpen);
+      window.removeEventListener("drop", preventBrowserOpen);
+    };
+  }, [open]);
+
+  useEffect(() => {
     if (files.length === 0) {
       setPreviewUrls([]);
       return;
@@ -38,7 +55,6 @@ export default function UploadButton() {
 
   function formatFileDate(file: File) {
     const date = new Date(file.lastModified);
-
     const day = String(date.getDate()).padStart(2, "0");
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const year = date.getFullYear();
@@ -237,7 +253,18 @@ export default function UploadButton() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 px-4 backdrop-blur-sm">
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDragging(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 px-4 backdrop-blur-sm"
+        >
           <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-neutral-200 bg-white p-6 text-neutral-950">
             <div className="mb-6 flex items-center justify-between">
               <div>
@@ -257,13 +284,24 @@ export default function UploadButton() {
 
             <div className="space-y-4">
               <div
-                onDragOver={(e) => {
+                onDragEnter={(e) => {
                   e.preventDefault();
+                  e.stopPropagation();
                   setIsDragging(true);
                 }}
-                onDragLeave={() => setIsDragging(false)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDragging(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDragging(false);
+                }}
                 onDrop={(e) => {
                   e.preventDefault();
+                  e.stopPropagation();
                   setIsDragging(false);
                   handleFiles(e.dataTransfer.files);
                 }}
@@ -283,6 +321,8 @@ export default function UploadButton() {
                     if (e.target.files) {
                       handleFiles(e.target.files);
                     }
+
+                    e.currentTarget.value = "";
                   }}
                 />
 
