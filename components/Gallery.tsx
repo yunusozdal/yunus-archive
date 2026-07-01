@@ -64,17 +64,21 @@ export default function Gallery({ isAdmin }: GalleryProps) {
   }, []);
 
   async function handleDelete() {
-    if (!selectedWork) return;
+  if (!selectedWork) return;
 
-    const confirmed = confirm("Bunu silmek istediğine emin misin?");
-    if (!confirmed) return;
+  const confirmed = confirm("Bunu silmek istediğine emin misin?");
+  if (!confirmed) return;
 
-    const success = await deleteWork(selectedWork.id);
-    if (!success) return;
+  const success = await deleteWork(selectedWork.id);
 
-    setWorks((prev) => prev.filter((work) => work.id !== selectedWork.id));
-    setSelectedWork(null);
+  if (!success) {
+    alert("Silinemedi. Admin girişi veya Supabase delete policy kontrol edilmeli.");
+    return;
   }
+
+  setWorks((prev) => prev.filter((work) => work.id !== selectedWork.id));
+  setSelectedWork(null);
+}
 
   return (
     <>
