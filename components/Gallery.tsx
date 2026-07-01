@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Card from "./Card";
 import Lightbox from "./Lightbox";
 import { deleteWork, getWorks, toggleFavorite } from "../lib/storage";
@@ -24,25 +24,29 @@ type GalleryProps = {
 export default function Gallery({ isAdmin }: GalleryProps) {
   const [works, setWorks] = useState<Work[]>([]);
   const [selectedWork, setSelectedWork] = useState<Work | null>(null);
-  const [columnCount, setColumnCount] = useState(4);
+  const [columnCount, setColumnCount] = useState(2);
+  const [visibleCount, setVisibleCount] = useState(40);
 
   useEffect(() => {
-    function updateColumns() {
+    function updateLayout() {
       const width = window.innerWidth;
 
       if (width < 640) {
-        setColumnCount(4);
+        setColumnCount(2);
+        setVisibleCount(40);
       } else if (width < 1024) {
-        setColumnCount(6);
+        setColumnCount(3);
+        setVisibleCount(60);
       } else {
-        setColumnCount(8);
+        setColumnCount(5);
+        setVisibleCount(100);
       }
     }
 
-    updateColumns();
-    window.addEventListener("resize", updateColumns);
+    updateLayout();
+    window.addEventListener("resize", updateLayout);
 
-    return () => window.removeEventListener("resize", updateColumns);
+    return () => window.removeEventListener("resize", updateLayout);
   }, []);
 
   function parseMediaDate(dateString?: string | null) {
@@ -148,8 +152,14 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     setSelectedWork(null);
   }
 
-  const columns = createColumns(works);
-  const gap = columnCount >= 8 ? "6px" : "4px";
+  const visibleWorks = useMemo(
+    () => works.slice(0, visibleCount),
+    [works, visibleCount]
+  );
+
+  const columns = createColumns(visibleWorks);
+  const hasMore = visibleCount < works.length;
+  const gap = columnCount === 2 ? "6px" : "8px";
 
   return (
     <>
@@ -158,38 +168,51 @@ export default function Gallery({ isAdmin }: GalleryProps) {
           Henüz bir şey yüklenmedi.
         </div>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-            gap,
-          }}
-        >
-          {columns.map((column, columnIndex) => (
-            <div
-              key={columnIndex}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap,
-              }}
-            >
-              {column.map((work) => (
-                <Card
-                  key={work.id}
-                  title={work.title || "Untitled"}
-                  mediaDate={work.media_date}
-                  mediaUrl={work.media_url}
-                  mediaType={work.media_type}
-                  thumbnailUrl={work.thumbnail_url}
-                  favorite={Boolean(work.favorite)}
-                  canFavorite={isAdmin}
-                  onFavorite={() => handleFavorite(work)}
-                  onOpen={() => setSelectedWork(work)}
-                />
-              ))}
+        <div className="space-y-6">
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+              gap,
+            }}
+          >
+            {columns.map((column, columnIndex) => (
+              <div
+                key={columnIndex}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap,
+                }}
+              >
+                {column.map((work) => (
+                  <Card
+                    key={work.id}
+                    title={work.title || "Untitled"}
+                    mediaDate={work.media_date}
+                    mediaUrl={work.media_url}
+                    mediaType={work.media_type}
+                    thumbnailUrl={work.thumbnail_url}
+                    favorite={Boolean(work.favorite)}
+                    canFavorite={isAdmin}
+                    onFavorite={() => handleFavorite(work)}
+                    onOpen={() => setSelectedWork(work)}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {hasMore && (
+            <div className="flex justify-center pt-4">
+              <button
+                onClick={() => setVisibleCount((prev) => prev + 40)}
+                className="rounded-full border border-neutral-200 bg-white px-5 py-3 text-sm font-semibold text-neutral-700 transition hover:border-red-300 hover:text-red-600"
+              >
+                Load more
+              </button>
             </div>
-          ))}
+          )}
         </div>
       )}
 
