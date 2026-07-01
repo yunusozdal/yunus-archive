@@ -15,10 +15,20 @@ export async function getWorks() {
 }
 
 export async function deleteWork(id: string) {
-  const { error } = await supabase.from("works").delete().eq("id", id);
+  const { data, error } = await supabase
+    .from("works")
+    .delete()
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     console.error("Delete error:", error);
+    return false;
+  }
+
+  if (!data) {
+    console.error("Delete blocked or no row deleted");
     return false;
   }
 
@@ -37,6 +47,19 @@ export async function updateWork(
 
   if (error) {
     console.error("Update error:", error);
+    return false;
+  }
+
+  return true;
+}
+export async function toggleFavorite(id: string, currentValue: boolean) {
+  const { error } = await supabase
+    .from("works")
+    .update({ favorite: !currentValue })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Favorite error:", error);
     return false;
   }
 

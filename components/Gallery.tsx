@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Card from "./Card";
 import Lightbox from "./Lightbox";
-import { deleteWork, getWorks } from "../lib/storage";
+import { deleteWork, getWorks, toggleFavorite } from "../lib/storage";
 
 type Work = {
   id: string;
@@ -13,6 +13,7 @@ type Work = {
   media_type: "image" | "video";
   image_url?: string;
   created_at: string;
+  favorite?: boolean;
 };
 
 type GalleryProps = {
@@ -33,52 +34,84 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     return new Date(year, month - 1, day).getTime();
   }
 
+  function sortWorks(items: Work[]) {
+    return [...items].sort((a, b) => {
+      if (Boolean(a.favorite) !== Boolean(b.favorite)) {
+        return Number(Boolean(b.favorite)) - Number(Boolean(a.favorite));
+      }
+
+      const dateA = parseMediaDate(a.media_date);
+      const dateB = parseMediaDate(b.media_date);
+
+      if (dateA !== dateB) {
+        return dateB - dateA;
+      }
+
+      return (
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
+      );
+    });
+  }
+
   async function loadWorks() {
     const data = await getWorks();
 
-    const normalized = (data as Work[])
-      .map((work) => ({
-        ...work,
-        media_url: work.media_url || work.image_url || "",
-        media_type: work.media_type || "image",
-      }))
-      .sort((a, b) => {
-        const dateA = parseMediaDate(a.media_date);
-        const dateB = parseMediaDate(b.media_date);
+    const normalized = (data as Work[]).map((work) => ({
+      ...work,
+      media_url: work.media_url || work.image_url || "",
+      media_type: work.media_type || "image",
+      favorite: Boolean(work.favorite),
+    }));
 
-        if (dateA !== dateB) {
-          return dateB - dateA;
-        }
-
-        return (
-          new Date(b.created_at).getTime() -
-          new Date(a.created_at).getTime()
-        );
-      });
-
-    setWorks(normalized);
+    setWorks(sortWorks(normalized));
   }
 
   useEffect(() => {
     loadWorks();
   }, []);
 
-  async function handleDelete() {
-  if (!selectedWork) return;
+  async function handleFavorite(work: Work) {
+    const success = await toggleFavorite(work.id, Boolean(work.favorite));
 
-  const confirmed = confirm("Bunu silmek istediğine emin misin?");
-  if (!confirmed) return;
+    if (!success) {
+      alert("Favorite güncellenemedi.");
+      return;
+    }
 
-  const success = await deleteWork(selectedWork.id);
+    setWorks((prev) =>
+      sortWorks(
+        prev.map((item) =>
+          item.id === work.id
+            ? { ...item, favorite: !Boolean(item.favorite) }
+            : item
+        )
+      )
+    );
 
-  if (!success) {
-    alert("Silinemedi. Admin girişi veya Supabase delete policy kontrol edilmeli.");
-    return;
+    setSelectedWork((prev) =>
+      prev && prev.id === work.id
+        ? { ...prev, favorite: !Boolean(prev.favorite) }
+        : prev
+    );
   }
 
-  setWorks((prev) => prev.filter((work) => work.id !== selectedWork.id));
-  setSelectedWork(null);
-}
+  async function handleDelete() {
+    if (!selectedWork) return;
+
+    const confirmed = confirm("Bunu silmek istediğine emin misin?");
+    if (!confirmed) return;
+
+    const success = await deleteWork(selectedWork.id);
+
+    if (!success) {
+      alert("Silinemedi. Admin girişi veya Supabase delete policy kontrol edilmeli.");
+      return;
+    }
+
+    setWorks((prev) => prev.filter((work) => work.id !== selectedWork.id));
+    setSelectedWork(null);
+  }
 
   return (
     <>
@@ -87,7 +120,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
           Henüz bir şey yüklenmedi.
         </div>
       ) : (
-        <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4">
+        <div className="columns-2 gap-2 sm:columns-3 md:columns-4 xl:columns-5">
           {works.map((work) => (
             <Card
               key={work.id}
@@ -95,6 +128,9 @@ export default function Gallery({ isAdmin }: GalleryProps) {
               mediaDate={work.media_date}
               mediaUrl={work.media_url}
               mediaType={work.media_type}
+              favorite={Boolean(work.favorite)}
+              canFavorite={isAdmin}
+              onFavorite={() => handleFavorite(work)}
               onOpen={() => setSelectedWork(work)}
             />
           ))}
