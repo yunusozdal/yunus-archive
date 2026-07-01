@@ -55,6 +55,7 @@ export default function UploadButton() {
 
   function formatFileDate(file: File) {
     const date = new Date(file.lastModified);
+
     const day = String(date.getDate()).padStart(2, "0");
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const year = date.getFullYear();
@@ -160,6 +161,98 @@ export default function UploadButton() {
     });
   }
 
+  async function createVideoThumbnail(file: File): Promise<File | null> {
+    return new Promise((resolve) => {
+      const video = document.createElement("video");
+      const objectUrl = URL.createObjectURL(file);
+
+      video.src = objectUrl;
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = "metadata";
+
+      video.onloadedmetadata = () => {
+        video.currentTime = Math.min(0.5, video.duration || 0.5);
+      };
+
+      video.onseeked = () => {
+        const canvas = document.createElement("canvas");
+
+        const maxWidth = 900;
+        const ratio = video.videoWidth / video.videoHeight;
+
+        let width = video.videoWidth;
+        let height = video.videoHeight;
+
+        if (width > maxWidth) {
+          width = maxWidth;
+          height = Math.round(width / ratio);
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          URL.revokeObjectURL(objectUrl);
+          resolve(null);
+          return;
+        }
+
+        ctx.drawImage(video, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            URL.revokeObjectURL(objectUrl);
+
+            if (!blob) {
+              resolve(null);
+              return;
+            }
+
+            const thumbnailFile = new File(
+              [blob],
+              `${getTitleFromFileName(file.name)}-thumbnail.webp`,
+              {
+                type: "image/webp",
+                lastModified: file.lastModified,
+              }
+            );
+
+            resolve(thumbnailFile);
+          },
+          "image/webp",
+          0.8
+        );
+      };
+
+      video.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(null);
+      };
+    });
+  }
+
+  async function uploadFileToStorage(file: File) {
+    const safeName = cleanFileName(file.name);
+    const fileName = `${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}-${safeName}`;
+
+    const { error } = await supabase.storage.from("works").upload(fileName, file, {
+      contentType: file.type,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const { data } = supabase.storage.from("works").getPublicUrl(fileName);
+
+    return data.publicUrl;
+  }
+
   async function handleUpload() {
     if (files.length === 0) {
       setMessage("Önce görsel ya da video seç.");
@@ -173,52 +266,65 @@ export default function UploadButton() {
 
     for (const file of files) {
       const isImage = file.type.startsWith("image/");
-      const uploadFile = isImage ? await compressImage(file) : file;
+      const isVideo = file.type.startsWith("video/");
 
-      if (isImage) {
-        setMessage(
-          `${file.name} sıkıştırıldı: ${formatMB(file.size)} → ${formatMB(
-            uploadFile.size
-          )}`
-        );
-      } else {
-        setMessage(`${file.name} yükleniyor...`);
-      }
+      try {
+        let uploadFile = file;
+        let thumbnailUrl: string | null = null;
 
-      const safeName = cleanFileName(uploadFile.name);
-      const fileName = `${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2)}-${safeName}`;
+        if (isImage) {
+          uploadFile = await compressImage(file);
 
-      const { error: uploadError } = await supabase.storage
-        .from("works")
-        .upload(fileName, uploadFile, {
-          contentType: uploadFile.type,
+          setMessage(
+            `${file.name} sıkıştırıldı: ${formatMB(file.size)} → ${formatMB(
+              uploadFile.size
+            )}`
+          );
+        }
+
+        if (isVideo) {
+          setMessage(`${file.name} için video önizlemesi hazırlanıyor...`);
+
+          const thumbnailFile = await createVideoThumbnail(file);
+
+          if (thumbnailFile) {
+            thumbnailUrl = await uploadFileToStorage(thumbnailFile);
+          }
+
+          setMessage(`${file.name} yükleniyor...`);
+        }
+
+        const mediaUrl = await uploadFileToStorage(uploadFile);
+
+        const mediaType = isVideo ? "video" : "image";
+        const title = getTitleFromFileName(file.name);
+        const mediaDate = formatFileDate(file);
+
+        if (!thumbnailUrl && mediaType === "image") {
+          thumbnailUrl = mediaUrl;
+        }
+
+        rows.push({
+          title,
+          category: "Upload",
+          favorite: false,
+          year: null,
+          image_url: mediaUrl,
+          media_url: mediaUrl,
+          media_type: mediaType,
+          media_date: mediaDate,
+          thumbnail_url: thumbnailUrl,
         });
-
-      if (uploadError) {
-        console.error("Upload error:", uploadError);
-        setMessage(`Upload failed: ${uploadError.message}`);
+      } catch (error) {
+        console.error("Upload error:", error);
+        setMessage(
+          error instanceof Error
+            ? `Upload failed: ${error.message}`
+            : "Upload failed."
+        );
         setLoading(false);
         return;
       }
-
-      const { data } = supabase.storage.from("works").getPublicUrl(fileName);
-
-      const mediaType = uploadFile.type.startsWith("video") ? "video" : "image";
-      const title = getTitleFromFileName(file.name);
-      const mediaDate = formatFileDate(file);
-
-      rows.push({
-        title,
-        category: "Upload",
-        favorite: false,
-        year: null,
-        image_url: data.publicUrl,
-        media_url: data.publicUrl,
-        media_type: mediaType,
-        media_date: mediaDate,
-      });
     }
 
     const { error: insertError } = await supabase.from("works").insert(rows);
