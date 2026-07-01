@@ -9,6 +9,7 @@ export default function UploadButton() {
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (files.length === 0) {
@@ -47,6 +48,20 @@ export default function UploadButton() {
 
   function formatMB(bytes: number) {
     return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  function handleFiles(selectedFiles: FileList | File[]) {
+    const fileArray = Array.from(selectedFiles).filter(
+      (file) => file.type.startsWith("image/") || file.type.startsWith("video/")
+    );
+
+    if (fileArray.length === 0) {
+      setMessage("Sadece görsel veya video yükleyebilirsin.");
+      return;
+    }
+
+    setFiles((prev) => [...prev, ...fileArray]);
+    setMessage("");
   }
 
   async function compressImage(file: File): Promise<File> {
@@ -183,9 +198,7 @@ export default function UploadButton() {
         category: "Upload",
         favorite: false,
         year: null,
-
         image_url: data.publicUrl,
-
         media_url: data.publicUrl,
         media_type: mediaType,
         media_date: mediaDate,
@@ -230,7 +243,7 @@ export default function UploadButton() {
               <div>
                 <h2 className="text-xl font-semibold">Upload</h2>
                 <p className="mt-1 text-sm text-neutral-500">
-                  Görseller otomatik sıkıştırılır. Videolar olduğu gibi yüklenir.
+                  Dosyaları sürükle-bırak veya seç.
                 </p>
               </div>
 
@@ -243,24 +256,58 @@ export default function UploadButton() {
             </div>
 
             <div className="space-y-4">
-              <label className="block cursor-pointer rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center transition hover:border-red-500">
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  handleFiles(e.dataTransfer.files);
+                }}
+                className={`rounded-2xl border border-dashed p-8 text-center transition ${
+                  isDragging
+                    ? "border-red-600 bg-red-50"
+                    : "border-neutral-300 bg-neutral-50 hover:border-red-500"
+                }`}
+              >
                 <input
+                  id="file-upload"
                   type="file"
                   accept="image/*,video/*"
                   multiple
                   className="hidden"
                   onChange={(e) => {
-                    setFiles(Array.from(e.target.files || []));
-                    setMessage("");
+                    if (e.target.files) {
+                      handleFiles(e.target.files);
+                    }
                   }}
                 />
 
-                <div className="text-sm text-neutral-500">
-                  {files.length > 0
-                    ? `${files.length} dosya seçildi`
-                    : "Görsel veya video seç"}
-                </div>
-              </label>
+                <label htmlFor="file-upload" className="block cursor-pointer">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white">
+                    +
+                  </div>
+
+                  <p className="text-sm font-medium text-neutral-900">
+                    {isDragging
+                      ? "Dosyaları buraya bırak"
+                      : "Dosyaları buraya sürükle"}
+                  </p>
+
+                  <p className="mt-1 text-xs text-neutral-500">
+                    veya tıklayıp görsel/video seç
+                  </p>
+
+                  {files.length > 0 && (
+                    <p className="mt-3 text-xs font-medium text-red-600">
+                      {files.length} dosya seçildi
+                    </p>
+                  )}
+                </label>
+              </div>
 
               {previewUrls.length > 0 && (
                 <div className="grid grid-cols-2 gap-3">
@@ -293,13 +340,28 @@ export default function UploadButton() {
                           </p>
 
                           <p className="text-xs text-neutral-400">
-                            {file && `${formatMB(file.size)} · ${formatFileDate(file)}`}
+                            {file &&
+                              `${formatMB(file.size)} · ${formatFileDate(
+                                file
+                              )}`}
                           </p>
                         </div>
                       </div>
                     );
                   })}
                 </div>
+              )}
+
+              {files.length > 0 && (
+                <button
+                  onClick={() => {
+                    setFiles([]);
+                    setMessage("");
+                  }}
+                  className="w-full rounded-full border border-neutral-200 bg-white px-5 py-3 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-50"
+                >
+                  Seçilenleri temizle
+                </button>
               )}
 
               {message && (
