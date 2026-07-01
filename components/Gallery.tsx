@@ -30,11 +30,11 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       const width = window.innerWidth;
 
       if (width < 640) {
-        setColumnCount(4);
+        setColumnCount(4); // mobil
       } else if (width < 1024) {
-        setColumnCount(5);
+        setColumnCount(6); // tablet
       } else {
-        setColumnCount(6);
+        setColumnCount(8); // desktop / tarayıcı
       }
     }
 
@@ -143,7 +143,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
         <div
           style={{
             columnCount,
-            columnGap: "4px",
+            columnGap: "6px",
           }}
         >
           {works.map((work) => (
