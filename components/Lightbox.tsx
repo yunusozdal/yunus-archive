@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 type Work = {
   id: string;
   title: string;
@@ -21,6 +23,22 @@ export default function Lightbox({
   onDelete,
   canDelete,
 }: LightboxProps) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    if (work) {
+      window.addEventListener("keydown", handleKeyDown);
+    }
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [work, onClose]);
+
   if (!work) return null;
 
   return (
