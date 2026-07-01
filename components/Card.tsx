@@ -3,6 +3,7 @@ type CardProps = {
   mediaDate?: string | null;
   mediaUrl: string;
   mediaType: "image" | "video";
+  thumbnailUrl?: string | null;
   favorite?: boolean;
   canFavorite?: boolean;
   onFavorite?: () => void;
@@ -13,51 +14,40 @@ export default function Card({
   title,
   mediaUrl,
   mediaType,
+  thumbnailUrl,
   favorite = false,
   canFavorite = false,
   onFavorite,
   onOpen,
 }: CardProps) {
+  const previewUrl = thumbnailUrl || mediaUrl;
+
   return (
     <div
       onClick={onOpen}
-      className="group inline-block w-full break-inside-avoid cursor-pointer overflow-hidden rounded-md border border-neutral-200 bg-white transition hover:border-red-500 md:rounded-xl"
+      className="group cursor-pointer overflow-hidden rounded-md border border-neutral-200 bg-white transition hover:border-red-500 md:rounded-xl"
       style={{ marginBottom: "4px" }}
     >
       <div className="relative overflow-hidden bg-neutral-100">
-        {mediaType === "video" ? (
-          <>
-            <video
-              src={mediaUrl}
-              muted
-              playsInline
-              preload="metadata"
-              className="pointer-events-none h-auto w-full transition duration-300 group-hover:scale-[1.02]"
-            />
+        <img
+          src={previewUrl}
+          alt={title}
+          loading="lazy"
+          decoding="async"
+          className="h-auto w-full transition duration-300 group-hover:scale-[1.02]"
+        />
 
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 pl-0.5 text-[9px] text-white md:h-10 md:w-10 md:text-sm">
-                ▶
-              </div>
+        {mediaType === "video" && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 pl-0.5 text-[9px] text-white md:h-10 md:w-10 md:text-sm">
+              ▶
             </div>
-
-            <div className="absolute left-1 top-1 rounded-full bg-white px-1 py-0.5 text-[7px] font-medium text-red-600 md:px-2 md:text-xs">
-              Video
-            </div>
-          </>
-        ) : (
-          <>
-            <img
-              src={mediaUrl}
-              alt={title}
-              className="h-auto w-full transition duration-300 group-hover:scale-[1.02]"
-            />
-
-            <div className="absolute left-1 top-1 rounded-full bg-white px-1 py-0.5 text-[7px] font-medium text-red-600 md:px-2 md:text-xs">
-              Image
-            </div>
-          </>
+          </div>
         )}
+
+        <div className="absolute left-1 top-1 rounded-full bg-white px-1 py-0.5 text-[7px] font-medium text-red-600 md:px-2 md:text-xs">
+          {mediaType === "video" ? "Video" : "Image"}
+        </div>
 
         {canFavorite && (
           <button
