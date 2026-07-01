@@ -34,7 +34,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       } else if (width < 1024) {
         setColumnCount(6); // tablet
       } else {
-        setColumnCount(8); // desktop / tarayıcı
+        setColumnCount(8); // desktop
       }
     }
 
@@ -56,8 +56,11 @@ export default function Gallery({ isAdmin }: GalleryProps) {
 
   function sortWorks(items: Work[]) {
     return [...items].sort((a, b) => {
-      if (Boolean(a.favorite) !== Boolean(b.favorite)) {
-        return Number(Boolean(b.favorite)) - Number(Boolean(a.favorite));
+      const favoriteA = Boolean(a.favorite);
+      const favoriteB = Boolean(b.favorite);
+
+      if (favoriteA !== favoriteB) {
+        return Number(favoriteB) - Number(favoriteA);
       }
 
       const dateA = parseMediaDate(a.media_date);
@@ -72,6 +75,17 @@ export default function Gallery({ isAdmin }: GalleryProps) {
         new Date(a.created_at).getTime()
       );
     });
+  }
+
+  function createMasonryColumns(items: Work[]) {
+    const columns: Work[][] = Array.from({ length: columnCount }, () => []);
+
+    items.forEach((item, index) => {
+      const columnIndex = index % columnCount;
+      columns[columnIndex].push(item);
+    });
+
+    return columns;
   }
 
   async function loadWorks() {
@@ -133,6 +147,9 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     setSelectedWork(null);
   }
 
+  const columns = createMasonryColumns(works);
+  const gap = columnCount >= 8 ? "6px" : "4px";
+
   return (
     <>
       {works.length === 0 ? (
@@ -142,22 +159,34 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       ) : (
         <div
           style={{
-            columnCount,
-            columnGap: "6px",
+            display: "grid",
+            gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+            gap,
           }}
         >
-          {works.map((work) => (
-            <Card
-              key={work.id}
-              title={work.title || "Untitled"}
-              mediaDate={work.media_date}
-              mediaUrl={work.media_url}
-              mediaType={work.media_type}
-              favorite={Boolean(work.favorite)}
-              canFavorite={isAdmin}
-              onFavorite={() => handleFavorite(work)}
-              onOpen={() => setSelectedWork(work)}
-            />
+          {columns.map((column, columnIndex) => (
+            <div
+              key={columnIndex}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap,
+              }}
+            >
+              {column.map((work) => (
+                <Card
+                  key={work.id}
+                  title={work.title || "Untitled"}
+                  mediaDate={work.media_date}
+                  mediaUrl={work.media_url}
+                  mediaType={work.media_type}
+                  favorite={Boolean(work.favorite)}
+                  canFavorite={isAdmin}
+                  onFavorite={() => handleFavorite(work)}
+                  onOpen={() => setSelectedWork(work)}
+                />
+              ))}
+            </div>
           ))}
         </div>
       )}
