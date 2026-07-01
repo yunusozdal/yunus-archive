@@ -21,7 +21,6 @@ export default function Card({
   onOpen,
 }: CardProps) {
   const isVideo = mediaType === "video";
-  const imageSrc = isVideo ? thumbnailUrl : thumbnailUrl || mediaUrl;
 
   return (
     <div
@@ -30,24 +29,32 @@ export default function Card({
       style={{ marginBottom: "6px" }}
     >
       <div className="relative overflow-hidden bg-neutral-100">
-        {imageSrc ? (
+        {isVideo ? (
+          thumbnailUrl ? (
+            <img
+              src={thumbnailUrl}
+              alt={title}
+              loading="lazy"
+              decoding="async"
+              className="h-auto w-full transition duration-300 group-hover:scale-[1.02]"
+            />
+          ) : (
+            <video
+              src={`${mediaUrl}#t=0.1`}
+              muted
+              playsInline
+              preload="metadata"
+              className="pointer-events-none h-auto w-full transition duration-300 group-hover:scale-[1.02]"
+            />
+          )
+        ) : (
           <img
-            src={imageSrc}
+            src={thumbnailUrl || mediaUrl}
             alt={title}
             loading="lazy"
             decoding="async"
             className="h-auto w-full transition duration-300 group-hover:scale-[1.02]"
           />
-        ) : (
-          <div className="flex aspect-[9/12] w-full items-center justify-center bg-red-50">
-            <div className="flex flex-col items-center gap-2 text-red-600">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600 pl-0.5 text-xs text-white">
-                ▶
-              </div>
-
-              <span className="text-[9px] font-medium">Video</span>
-            </div>
-          </div>
         )}
 
         {isVideo && (
