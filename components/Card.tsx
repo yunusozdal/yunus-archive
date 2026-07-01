@@ -21,7 +21,7 @@ export default function Card({
   return (
     <div
       onClick={onOpen}
-      className="group mb-2 break-inside-avoid cursor-pointer overflow-hidden rounded-xl border border-neutral-200 bg-white transition hover:border-red-500 md:mb-5 md:rounded-2xl"
+      className="group mb-1 break-inside-avoid cursor-pointer overflow-hidden rounded-lg border border-neutral-200 bg-white transition hover:border-red-500 md:mb-4 md:rounded-2xl"
     >
       <div className="relative overflow-hidden bg-neutral-100">
         {mediaType === "video" ? (
@@ -35,7 +35,7 @@ export default function Card({
             />
 
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-600 pl-1 text-sm text-white md:h-12 md:w-12">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-red-600 pl-0.5 text-[10px] text-white md:h-12 md:w-12 md:text-sm">
                 ▶
               </div>
             </div>
