@@ -8,6 +8,7 @@ export default function UploadButton() {
   const [files, setFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (files.length === 0) {
@@ -46,11 +47,12 @@ export default function UploadButton() {
 
   async function handleUpload() {
     if (files.length === 0) {
-      alert("Önce görsel ya da video seç kanka");
+      setMessage("Önce görsel ya da video seç.");
       return;
     }
 
     setLoading(true);
+    setMessage("Yükleniyor...");
 
     const rows = [];
 
@@ -65,8 +67,8 @@ export default function UploadButton() {
         .upload(fileName, file);
 
       if (uploadError) {
-        console.error(uploadError);
-        alert(`${file.name} yüklenemedi`);
+        console.error("Upload error:", uploadError);
+        setMessage(`Upload failed: ${uploadError.message}`);
         setLoading(false);
         return;
       }
@@ -74,42 +76,57 @@ export default function UploadButton() {
       const { data } = supabase.storage.from("works").getPublicUrl(fileName);
 
       const mediaType = file.type.startsWith("video") ? "video" : "image";
+      const title = getTitleFromFileName(file.name);
+      const mediaDate = formatFileDate(file);
 
       rows.push({
-        title: getTitleFromFileName(file.name),
-        media_date: formatFileDate(file),
+        title,
+        category: "Upload",
+        favorite: false,
+        year: null,
+
+        image_url: data.publicUrl,
+
         media_url: data.publicUrl,
         media_type: mediaType,
+        media_date: mediaDate,
       });
     }
 
     const { error: insertError } = await supabase.from("works").insert(rows);
 
     if (insertError) {
-      console.error(insertError);
-      alert("Database insert failed");
+      console.error("Insert error:", insertError);
+      setMessage(`Database insert failed: ${insertError.message}`);
       setLoading(false);
       return;
     }
 
+    setMessage("Yüklendi!");
     setLoading(false);
-    setOpen(false);
     setFiles([]);
-    window.location.reload();
+
+    setTimeout(() => {
+      setOpen(false);
+      window.location.reload();
+    }, 600);
   }
 
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
-        className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200"
+        onClick={() => {
+          setOpen(true);
+          setMessage("");
+        }}
+        className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700"
       >
         Upload
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-neutral-800 bg-neutral-950 p-6 text-white shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 px-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-neutral-200 bg-white p-6 text-neutral-950">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold">Upload</h2>
@@ -120,23 +137,26 @@ export default function UploadButton() {
 
               <button
                 onClick={() => setOpen(false)}
-                className="rounded-full bg-neutral-900 px-3 py-2 text-sm text-neutral-400 hover:text-white"
+                className="rounded-full bg-neutral-100 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
               >
                 ✕
               </button>
             </div>
 
             <div className="space-y-4">
-              <label className="block cursor-pointer rounded-2xl border border-dashed border-neutral-700 bg-black p-6 text-center transition hover:border-neutral-500">
+              <label className="block cursor-pointer rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center transition hover:border-red-500">
                 <input
                   type="file"
                   accept="image/*,video/*"
                   multiple
                   className="hidden"
-                  onChange={(e) => setFiles(Array.from(e.target.files || []))}
+                  onChange={(e) => {
+                    setFiles(Array.from(e.target.files || []));
+                    setMessage("");
+                  }}
                 />
 
-                <div className="text-sm text-neutral-400">
+                <div className="text-sm text-neutral-500">
                   {files.length > 0
                     ? `${files.length} dosya seçildi`
                     : "Görsel veya video seç"}
@@ -152,7 +172,7 @@ export default function UploadButton() {
                     return (
                       <div
                         key={url}
-                        className="overflow-hidden rounded-2xl border border-neutral-800 bg-black"
+                        className="overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50"
                       >
                         {isVideo ? (
                           <video
@@ -169,10 +189,10 @@ export default function UploadButton() {
                         )}
 
                         <div className="space-y-1 px-3 py-2">
-                          <p className="truncate text-xs text-neutral-400">
+                          <p className="truncate text-xs text-neutral-700">
                             {file?.name}
                           </p>
-                          <p className="text-xs text-neutral-600">
+                          <p className="text-xs text-neutral-400">
                             {file && formatFileDate(file)}
                           </p>
                         </div>
@@ -182,12 +202,18 @@ export default function UploadButton() {
                 </div>
               )}
 
+              {message && (
+                <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                  {message}
+                </div>
+              )}
+
               <button
-                onClick={() => setOpen(true)}
+                onClick={handleUpload}
                 disabled={loading}
-                className="rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-black shadow-xl shadow-white/10 transition hover:scale-[1.02] hover:bg-neutral-200 active:scale-95"
+                className="w-full rounded-full bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Upload
+                {loading ? "Uploading..." : "Add"}
               </button>
             </div>
           </div>
