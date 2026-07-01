@@ -161,141 +161,6 @@ export default function UploadButton() {
     });
   }
 
-  async function createVideoThumbnail(file: File): Promise<File | null> {
-    return new Promise((resolve) => {
-      const video = document.createElement("video");
-      const objectUrl = URL.createObjectURL(file);
-
-      let resolved = false;
-
-      function finish(result: File | null) {
-        if (resolved) return;
-
-        resolved = true;
-        URL.revokeObjectURL(objectUrl);
-
-        if (video.parentNode) {
-          video.parentNode.removeChild(video);
-        }
-
-        resolve(result);
-      }
-
-      const timeout = window.setTimeout(() => {
-        finish(null);
-      }, 10000);
-
-      async function captureFrame() {
-        try {
-          const videoWidth = video.videoWidth || 900;
-          const videoHeight = video.videoHeight || 1200;
-
-          if (!videoWidth || !videoHeight) {
-            window.clearTimeout(timeout);
-            finish(null);
-            return;
-          }
-
-          const maxWidth = 900;
-          const ratio = videoWidth / videoHeight;
-
-          let width = videoWidth;
-          let height = videoHeight;
-
-          if (width > maxWidth) {
-            width = maxWidth;
-            height = Math.round(width / ratio);
-          }
-
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-
-          const ctx = canvas.getContext("2d");
-
-          if (!ctx) {
-            window.clearTimeout(timeout);
-            finish(null);
-            return;
-          }
-
-          ctx.drawImage(video, 0, 0, width, height);
-
-          canvas.toBlob(
-            (blob) => {
-              window.clearTimeout(timeout);
-
-              if (!blob) {
-                finish(null);
-                return;
-              }
-
-              const thumbnailFile = new File(
-                [blob],
-                `${getTitleFromFileName(file.name)}-thumbnail.webp`,
-                {
-                  type: "image/webp",
-                  lastModified: file.lastModified,
-                }
-              );
-
-              finish(thumbnailFile);
-            },
-            "image/webp",
-            0.8
-          );
-        } catch (error) {
-          console.error("Thumbnail capture error:", error);
-          window.clearTimeout(timeout);
-          finish(null);
-        }
-      }
-
-      video.muted = true;
-      video.playsInline = true;
-      video.preload = "auto";
-      video.src = objectUrl;
-
-      video.style.position = "fixed";
-      video.style.left = "-9999px";
-      video.style.top = "-9999px";
-      video.style.width = "1px";
-      video.style.height = "1px";
-      video.style.opacity = "0";
-
-      document.body.appendChild(video);
-
-      video.onloadedmetadata = () => {
-        try {
-          const targetTime = video.duration
-            ? Math.min(1, video.duration / 10)
-            : 0.3;
-
-          video.currentTime = targetTime;
-        } catch {
-          captureFrame();
-        }
-      };
-
-      video.onloadeddata = () => {
-        if (!video.duration || video.duration === Infinity) {
-          captureFrame();
-        }
-      };
-
-      video.onseeked = () => {
-        captureFrame();
-      };
-
-      video.onerror = () => {
-        window.clearTimeout(timeout);
-        finish(null);
-      };
-
-      video.load();
-    });
-  }
-
   async function uploadFileToStorage(file: File) {
     const safeName = cleanFileName(file.name);
     const fileName = `${Date.now()}-${Math.random()
@@ -331,51 +196,29 @@ export default function UploadButton() {
       const isVideo = file.type.startsWith("video/");
 
       try {
-        let uploadFile = file;
-        let thumbnailUrl: string | null = null;
+        const uploadFile = isImage ? await compressImage(file) : file;
 
         if (isImage) {
-          uploadFile = await compressImage(file);
-
           setMessage(
             `${file.name} sıkıştırıldı: ${formatMB(file.size)} → ${formatMB(
               uploadFile.size
             )}`
           );
-        }
-
-        if (isVideo) {
-          setMessage(`${file.name} için video kapağı hazırlanıyor...`);
-
-          const thumbnailFile = await createVideoThumbnail(file);
-
-          if (thumbnailFile) {
-            thumbnailUrl = await uploadFileToStorage(thumbnailFile);
-          }
-
+        } else {
           setMessage(`${file.name} yükleniyor...`);
         }
 
         const mediaUrl = await uploadFileToStorage(uploadFile);
 
-        const mediaType = isVideo ? "video" : "image";
-        const title = getTitleFromFileName(file.name);
-        const mediaDate = formatFileDate(file);
-
-        if (mediaType === "image") {
-          thumbnailUrl = mediaUrl;
-        }
-
         rows.push({
-          title,
+          title: getTitleFromFileName(file.name),
           category: "Upload",
           favorite: false,
           year: null,
           image_url: mediaUrl,
           media_url: mediaUrl,
-          media_type: mediaType,
-          media_date: mediaDate,
-          thumbnail_url: thumbnailUrl,
+          media_type: isVideo ? "video" : "image",
+          media_date: formatFileDate(file),
         });
       } catch (error) {
         console.error("Upload error:", error);

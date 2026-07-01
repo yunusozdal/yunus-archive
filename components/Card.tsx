@@ -3,7 +3,6 @@ type CardProps = {
   mediaDate?: string | null;
   mediaUrl: string;
   mediaType: "image" | "video";
-  thumbnailUrl?: string | null;
   favorite?: boolean;
   canFavorite?: boolean;
   onFavorite?: () => void;
@@ -14,7 +13,6 @@ export default function Card({
   title,
   mediaUrl,
   mediaType,
-  thumbnailUrl,
   favorite = false,
   canFavorite = false,
   onFavorite,
@@ -30,26 +28,16 @@ export default function Card({
     >
       <div className="relative overflow-hidden bg-neutral-100">
         {isVideo ? (
-          thumbnailUrl ? (
-            <img
-              src={thumbnailUrl}
-              alt={title}
-              loading="lazy"
-              decoding="async"
-              className="h-auto w-full transition duration-300 group-hover:scale-[1.02]"
-            />
-          ) : (
-            <video
-              src={`${mediaUrl}#t=0.1`}
-              muted
-              playsInline
-              preload="metadata"
-              className="pointer-events-none h-auto w-full transition duration-300 group-hover:scale-[1.02]"
-            />
-          )
+          <video
+            src={`${mediaUrl}#t=0.1`}
+            muted
+            playsInline
+            preload="auto"
+            className="pointer-events-none h-auto w-full transition duration-300 group-hover:scale-[1.02]"
+          />
         ) : (
           <img
-            src={thumbnailUrl || mediaUrl}
+            src={mediaUrl}
             alt={title}
             loading="lazy"
             decoding="async"

@@ -11,7 +11,6 @@ type Work = {
   media_date?: string | null;
   media_url: string;
   media_type: "image" | "video";
-  thumbnail_url?: string | null;
   image_url?: string;
   created_at: string;
   favorite?: boolean;
@@ -99,7 +98,6 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       ...work,
       media_url: work.media_url || work.image_url || "",
       media_type: work.media_type || "image",
-      thumbnail_url: work.thumbnail_url || null,
       favorite: Boolean(work.favorite),
     }));
 
@@ -192,7 +190,6 @@ export default function Gallery({ isAdmin }: GalleryProps) {
                     mediaDate={work.media_date}
                     mediaUrl={work.media_url}
                     mediaType={work.media_type}
-                    thumbnailUrl={work.thumbnail_url}
                     favorite={Boolean(work.favorite)}
                     canFavorite={isAdmin}
                     onFavorite={() => handleFavorite(work)}
