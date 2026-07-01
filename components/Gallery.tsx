@@ -23,6 +23,26 @@ type GalleryProps = {
 export default function Gallery({ isAdmin }: GalleryProps) {
   const [works, setWorks] = useState<Work[]>([]);
   const [selectedWork, setSelectedWork] = useState<Work | null>(null);
+  const [columnCount, setColumnCount] = useState(4);
+
+  useEffect(() => {
+    function updateColumns() {
+      const width = window.innerWidth;
+
+      if (width < 640) {
+        setColumnCount(4);
+      } else if (width < 1024) {
+        setColumnCount(5);
+      } else {
+        setColumnCount(6);
+      }
+    }
+
+    updateColumns();
+    window.addEventListener("resize", updateColumns);
+
+    return () => window.removeEventListener("resize", updateColumns);
+  }, []);
 
   function parseMediaDate(dateString?: string | null) {
     if (!dateString) return 0;
@@ -120,7 +140,12 @@ export default function Gallery({ isAdmin }: GalleryProps) {
           Henüz bir şey yüklenmedi.
         </div>
       ) : (
-        <div className="columns-2 gap-2 sm:columns-3 md:columns-4 xl:columns-5">
+        <div
+          style={{
+            columnCount,
+            columnGap: "4px",
+          }}
+        >
           {works.map((work) => (
             <Card
               key={work.id}
