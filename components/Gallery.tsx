@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Card from "./Card";
 import Lightbox from "./Lightbox";
 import { deleteWork, getWorks, toggleFavorite } from "../lib/storage";
@@ -26,8 +26,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
   const [columnCount, setColumnCount] = useState(2);
   const [visibleCount, setVisibleCount] = useState(24);
   const [pageSize, setPageSize] = useState(12);
-
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
     function updateLayout() {
@@ -36,15 +35,16 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       if (width < 640) {
         setColumnCount(2);
         setPageSize(12);
-        setVisibleCount((prev) => Math.max(prev, 24));
+        setVisibleCount(24);
+        setIsDesktop(false);
       } else if (width < 1024) {
         setColumnCount(3);
         setPageSize(18);
-        setVisibleCount((prev) => Math.max(prev, 36));
+        setVisibleCount(36);
+        setIsDesktop(false);
       } else {
         setColumnCount(5);
-        setPageSize(25);
-        setVisibleCount((prev) => Math.max(prev, 50));
+        setIsDesktop(true);
       }
     }
 
@@ -114,39 +114,13 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     loadWorks();
   }, []);
 
-  const visibleWorks = useMemo(
-    () => works.slice(0, visibleCount),
-    [works, visibleCount]
-  );
+  const visibleWorks = useMemo(() => {
+    if (isDesktop) {
+      return works;
+    }
 
-  const hasMore = visibleCount < works.length;
-
-  useEffect(() => {
-    const target = loadMoreRef.current;
-    if (!target) return;
-    if (!hasMore) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const firstEntry = entries[0];
-
-        if (firstEntry.isIntersecting) {
-          setVisibleCount((prev) => Math.min(prev + pageSize, works.length));
-        }
-      },
-      {
-        root: null,
-        rootMargin: "500px",
-        threshold: 0,
-      }
-    );
-
-    observer.observe(target);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [hasMore, pageSize, works.length, visibleCount]);
+    return works.slice(0, visibleCount);
+  }, [works, visibleCount, isDesktop]);
 
   async function handleFavorite(work: Work) {
     const success = await toggleFavorite(work.id, Boolean(work.favorite));
@@ -191,6 +165,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
   }
 
   const columns = createColumns(visibleWorks);
+  const hasMore = !isDesktop && visibleCount < works.length;
   const gap = columnCount === 2 ? "6px" : "8px";
 
   return (
@@ -235,11 +210,13 @@ export default function Gallery({ isAdmin }: GalleryProps) {
           </div>
 
           {hasMore && (
-            <div
-              ref={loadMoreRef}
-              className="flex justify-center py-8 text-xs text-neutral-400"
-            >
-              Yükleniyor...
+            <div className="flex justify-center pt-4">
+              <button
+                onClick={() => setVisibleCount((prev) => prev + pageSize)}
+                className="rounded-full border border-neutral-200 bg-white px-5 py-3 text-sm font-semibold text-neutral-700 transition hover:border-red-300 hover:text-red-600"
+              >
+                Load more
+              </button>
             </div>
           )}
         </div>
