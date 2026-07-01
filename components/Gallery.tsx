@@ -11,6 +11,7 @@ type Work = {
   media_date?: string | null;
   media_url: string;
   media_type: "image" | "video";
+  thumbnail_url?: string | null;
   image_url?: string;
   created_at: string;
   favorite?: boolean;
@@ -30,11 +31,11 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       const width = window.innerWidth;
 
       if (width < 640) {
-        setColumnCount(4); // mobil
+        setColumnCount(4);
       } else if (width < 1024) {
-        setColumnCount(6); // tablet
+        setColumnCount(6);
       } else {
-        setColumnCount(8); // desktop
+        setColumnCount(8);
       }
     }
 
@@ -77,12 +78,11 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     });
   }
 
-  function createMasonryColumns(items: Work[]) {
+  function createColumns(items: Work[]) {
     const columns: Work[][] = Array.from({ length: columnCount }, () => []);
 
     items.forEach((item, index) => {
-      const columnIndex = index % columnCount;
-      columns[columnIndex].push(item);
+      columns[index % columnCount].push(item);
     });
 
     return columns;
@@ -95,6 +95,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       ...work,
       media_url: work.media_url || work.image_url || "",
       media_type: work.media_type || "image",
+      thumbnail_url: work.thumbnail_url || null,
       favorite: Boolean(work.favorite),
     }));
 
@@ -147,7 +148,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     setSelectedWork(null);
   }
 
-  const columns = createMasonryColumns(works);
+  const columns = createColumns(works);
   const gap = columnCount >= 8 ? "6px" : "4px";
 
   return (
@@ -180,6 +181,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
                   mediaDate={work.media_date}
                   mediaUrl={work.media_url}
                   mediaType={work.media_type}
+                  thumbnailUrl={work.thumbnail_url}
                   favorite={Boolean(work.favorite)}
                   canFavorite={isAdmin}
                   onFavorite={() => handleFavorite(work)}

@@ -20,7 +20,8 @@ export default function Card({
   onFavorite,
   onOpen,
 }: CardProps) {
-  const hasThumbnail = Boolean(thumbnailUrl);
+  const isVideo = mediaType === "video";
+  const imageSrc = isVideo ? thumbnailUrl : thumbnailUrl || mediaUrl;
 
   return (
     <div
@@ -29,35 +30,26 @@ export default function Card({
       style={{ marginBottom: "4px" }}
     >
       <div className="relative overflow-hidden bg-neutral-100">
-        {mediaType === "video" ? (
-          hasThumbnail ? (
-            <img
-              src={thumbnailUrl || ""}
-              alt={title}
-              loading="lazy"
-              decoding="async"
-              className="h-auto w-full transition duration-300 group-hover:scale-[1.02]"
-            />
-          ) : (
-            <video
-              src={`${mediaUrl}#t=0.2`}
-              muted
-              playsInline
-              preload="metadata"
-              className="pointer-events-none h-auto w-full transition duration-300 group-hover:scale-[1.02]"
-            />
-          )
-        ) : (
+        {imageSrc ? (
           <img
-            src={thumbnailUrl || mediaUrl}
+            src={imageSrc}
             alt={title}
             loading="lazy"
             decoding="async"
             className="h-auto w-full transition duration-300 group-hover:scale-[1.02]"
           />
+        ) : (
+          <div className="flex aspect-[9/12] w-full items-center justify-center bg-red-50">
+            <div className="flex flex-col items-center gap-2 text-red-600">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600 pl-0.5 text-xs text-white">
+                ▶
+              </div>
+              <span className="text-[9px] font-medium">Video</span>
+            </div>
+          </div>
         )}
 
-        {mediaType === "video" && (
+        {isVideo && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 pl-0.5 text-[9px] text-white md:h-10 md:w-10 md:text-sm">
               ▶
@@ -66,7 +58,7 @@ export default function Card({
         )}
 
         <div className="absolute left-1 top-1 rounded-full bg-white px-1 py-0.5 text-[7px] font-medium text-red-600 md:px-2 md:text-xs">
-          {mediaType === "video" ? "Video" : "Image"}
+          {isVideo ? "Video" : "Image"}
         </div>
 
         {canFavorite && (
