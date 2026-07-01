@@ -62,7 +62,8 @@ export default function Lightbox({
             <video
               src={work.media_url}
               controls
-              autoPlay
+              playsInline
+              preload="metadata"
               className="max-h-[78vh] w-full object-contain"
             />
           ) : (
