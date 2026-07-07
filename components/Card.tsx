@@ -1,8 +1,13 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
 type CardProps = {
   title: string;
   mediaDate?: string | null;
   mediaUrl: string;
   mediaType: "image" | "video";
+  thumbnailUrl?: string | null;
   favorite?: boolean;
   canFavorite?: boolean;
   onFavorite?: () => void;
@@ -13,31 +18,72 @@ export default function Card({
   title,
   mediaUrl,
   mediaType,
+  thumbnailUrl,
   favorite = false,
   canFavorite = false,
   onFavorite,
   onOpen,
 }: CardProps) {
   const isVideo = mediaType === "video";
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
+
+  useEffect(() => {
+    if (!isVideo) return;
+
+    const element = cardRef.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+
+        if (entry.isIntersecting) {
+          setShouldLoadVideo(true);
+          observer.disconnect();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "500px",
+        threshold: 0,
+      }
+    );
+
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isVideo]);
 
   return (
     <div
+      ref={cardRef}
       onClick={onOpen}
-      className="group cursor-pointer overflow-hidden rounded-md border border-neutral-200 bg-white transition hover:border-red-500 md:rounded-xl [content-visibility:auto] [contain-intrinsic-size:180px]"
+      className="group cursor-pointer overflow-hidden rounded-md border border-neutral-200 bg-white transition hover:border-red-500 md:rounded-xl [content-visibility:auto] [contain-intrinsic-size:220px]"
       style={{ marginBottom: "6px" }}
     >
       <div className="relative overflow-hidden bg-neutral-100">
         {isVideo ? (
-          <video
-            src={`${mediaUrl}#t=0.1`}
-            muted
-            playsInline
-            preload="auto"
-            className="pointer-events-none h-auto w-full transition duration-300 group-hover:scale-[1.02]"
-          />
+          shouldLoadVideo ? (
+            <video
+              src={`${mediaUrl}#t=0.1`}
+              muted
+              playsInline
+              preload="metadata"
+              className="pointer-events-none h-auto w-full transition duration-300 group-hover:scale-[1.02]"
+            />
+          ) : (
+            <div className="flex aspect-[9/12] w-full items-center justify-center bg-neutral-100">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600 pl-0.5 text-xs text-white md:h-10 md:w-10 md:text-sm">
+                ▶
+              </div>
+            </div>
+          )
         ) : (
           <img
-            src={mediaUrl}
+            src={thumbnailUrl || mediaUrl}
             alt={title}
             loading="lazy"
             decoding="async"
