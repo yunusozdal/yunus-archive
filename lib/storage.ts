@@ -1,5 +1,28 @@
 import { supabase } from "./supabase";
 
+export async function getWorksPage(from = 0, to = 59) {
+  const { data, error, count } = await supabase
+    .from("works")
+    .select("*", { count: "exact" })
+    .order("favorite", { ascending: false })
+    .order("disliked", { ascending: true })
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  if (error) {
+    console.error("Works page fetch error:", error);
+    return {
+      data: [],
+      count: 0,
+    };
+  }
+
+  return {
+    data: data || [],
+    count: count || 0,
+  };
+}
+
 export async function getWorks() {
   const pageSize = 1000;
   let from = 0;

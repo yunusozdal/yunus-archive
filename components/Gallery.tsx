@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Card from "./Card";
 import Lightbox from "./Lightbox";
 import { supabase } from "../lib/supabase";
 import {
   deleteWork,
-  getWorks,
+  getWorksPage,
   toggleDislike,
   toggleFavorite,
   updateMediaMeta,
@@ -35,8 +35,13 @@ export default function Gallery({ isAdmin }: GalleryProps) {
   const [works, setWorks] = useState<Work[]>([]);
   const [selectedWork, setSelectedWork] = useState<Work | null>(null);
   const [columnCount, setColumnCount] = useState(2);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [optimizeMessage, setOptimizeMessage] = useState("");
+
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const pageSize = 60;
 
   useEffect(() => {
     function updateLayout() {
@@ -57,42 +62,17 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     return () => window.removeEventListener("resize", updateLayout);
   }, []);
 
-  function parseMediaDate(dateString?: string | null) {
-    if (!dateString) return 0;
-
-    const [day, month, year] = dateString.split(".").map(Number);
-
-    if (!day || !month || !year) return 0;
-
-    return new Date(year, month - 1, day).getTime();
-  }
-
-  function getPriority(work: Work) {
-    if (work.favorite) return 0;
-    if (work.disliked) return 2;
-    return 1;
-  }
-
-  function sortWorks(items: Work[]) {
-    return [...items].sort((a, b) => {
-      const priorityA = getPriority(a);
-      const priorityB = getPriority(b);
-
-      if (priorityA !== priorityB) {
-        return priorityA - priorityB;
-      }
-
-      const dateA = parseMediaDate(a.media_date);
-      const dateB = parseMediaDate(b.media_date);
-
-      if (dateA !== dateB) {
-        return dateB - dateA;
-      }
-
-      return (
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-    });
+  function normalizeWorks(items: any[]) {
+    return items.map((work) => ({
+      ...work,
+      media_url: work.media_url || work.image_url || "",
+      media_type: work.media_type || "image",
+      thumbnail_url: work.thumbnail_url || null,
+      media_width: work.media_width || null,
+      media_height: work.media_height || null,
+      favorite: Boolean(work.favorite),
+      disliked: Boolean(work.disliked),
+    })) as Work[];
   }
 
   function createColumns(items: Work[]) {
@@ -105,26 +85,66 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     return columns;
   }
 
-  async function loadWorks() {
-    const data = await getWorks();
+  async function loadFirstPage() {
+    const result = await getWorksPage(0, pageSize - 1);
 
-    const normalized = (data as Work[]).map((work) => ({
-      ...work,
-      media_url: work.media_url || work.image_url || "",
-      media_type: work.media_type || "image",
-      thumbnail_url: work.thumbnail_url || null,
-      media_width: work.media_width || null,
-      media_height: work.media_height || null,
-      favorite: Boolean(work.favorite),
-      disliked: Boolean(work.disliked),
-    }));
+    setWorks(normalizeWorks(result.data));
+    setTotalCount(result.count);
+  }
 
-    setWorks(sortWorks(normalized));
+  async function loadMoreWorks() {
+    if (loadingMore) return;
+    if (works.length >= totalCount) return;
+
+    setLoadingMore(true);
+
+    const from = works.length;
+    const to = from + pageSize - 1;
+
+    const result = await getWorksPage(from, to);
+    const nextWorks = normalizeWorks(result.data);
+
+    setWorks((prev) => {
+      const existingIds = new Set(prev.map((item) => item.id));
+      const filteredNext = nextWorks.filter((item) => !existingIds.has(item.id));
+
+      return [...prev, ...filteredNext];
+    });
+
+    setTotalCount(result.count);
+    setLoadingMore(false);
   }
 
   useEffect(() => {
-    loadWorks();
+    loadFirstPage();
   }, []);
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    if (!target) return;
+    if (works.length >= totalCount) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const firstEntry = entries[0];
+
+        if (firstEntry.isIntersecting) {
+          loadMoreWorks();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "700px",
+        threshold: 0,
+      }
+    );
+
+    observer.observe(target);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [works.length, totalCount, loadingMore]);
 
   function cleanFileName(fileName: string) {
     return fileName
@@ -169,7 +189,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
           return;
         }
 
-        const maxSize = 700;
+        const maxSize = 520;
         let width = originalWidth;
         let height = originalHeight;
 
@@ -218,7 +238,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
             });
           },
           "image/webp",
-          0.72
+          0.68
         );
       };
 
@@ -278,13 +298,11 @@ export default function Gallery({ isAdmin }: GalleryProps) {
   async function handleOptimizeMedia() {
     const itemsToOptimize = works.filter(
       (work) =>
-        !work.media_width ||
-        !work.media_height ||
-        needsImageThumbnail(work)
+        !work.media_width || !work.media_height || needsImageThumbnail(work)
     );
 
     if (itemsToOptimize.length === 0) {
-      setOptimizeMessage("Her şey hafif.");
+      setOptimizeMessage("Bu sayfadaki görünenler hafif.");
       return;
     }
 
@@ -318,17 +336,15 @@ export default function Gallery({ isAdmin }: GalleryProps) {
 
           if (success) {
             setWorks((prev) =>
-              sortWorks(
-                prev.map((item) =>
-                  item.id === work.id
-                    ? {
-                        ...item,
-                        media_width: thumbData.width,
-                        media_height: thumbData.height,
-                        thumbnail_url: nextThumbnailUrl,
-                      }
-                    : item
-                )
+              prev.map((item) =>
+                item.id === work.id
+                  ? {
+                      ...item,
+                      media_width: thumbData.width,
+                      media_height: thumbData.height,
+                      thumbnail_url: nextThumbnailUrl,
+                    }
+                  : item
               )
             );
           }
@@ -346,16 +362,14 @@ export default function Gallery({ isAdmin }: GalleryProps) {
 
             if (success) {
               setWorks((prev) =>
-                sortWorks(
-                  prev.map((item) =>
-                    item.id === work.id
-                      ? {
-                          ...item,
-                          media_width: dimensions.width,
-                          media_height: dimensions.height,
-                        }
-                      : item
-                  )
+                prev.map((item) =>
+                  item.id === work.id
+                    ? {
+                        ...item,
+                        media_width: dimensions.width,
+                        media_height: dimensions.height,
+                      }
+                    : item
                 )
               );
             }
@@ -381,16 +395,14 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     }
 
     setWorks((prev) =>
-      sortWorks(
-        prev.map((item) =>
-          item.id === work.id
-            ? {
-                ...item,
-                favorite: !Boolean(item.favorite),
-                disliked: false,
-              }
-            : item
-        )
+      prev.map((item) =>
+        item.id === work.id
+          ? {
+              ...item,
+              favorite: !Boolean(item.favorite),
+              disliked: false,
+            }
+          : item
       )
     );
 
@@ -414,16 +426,14 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     }
 
     setWorks((prev) =>
-      sortWorks(
-        prev.map((item) =>
-          item.id === work.id
-            ? {
-                ...item,
-                disliked: !Boolean(item.disliked),
-                favorite: false,
-              }
-            : item
-        )
+      prev.map((item) =>
+        item.id === work.id
+          ? {
+              ...item,
+              disliked: !Boolean(item.disliked),
+              favorite: false,
+            }
+          : item
       )
     );
 
@@ -453,12 +463,13 @@ export default function Gallery({ isAdmin }: GalleryProps) {
 
     setWorks((prev) => prev.filter((work) => work.id !== selectedWork.id));
     setSelectedWork(null);
+    setTotalCount((prev) => Math.max(prev - 1, 0));
   }
 
   const columns = createColumns(works);
   const gap = columnCount === 2 ? "6px" : "8px";
 
-  const totalCount = works.length;
+  const visibleCount = works.length;
   const imageCount = works.filter((work) => work.media_type === "image").length;
   const videoCount = works.filter((work) => work.media_type === "video").length;
 
@@ -478,7 +489,11 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       {isAdmin && (
         <div className="mb-4 grid gap-3 md:grid-cols-2">
           <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-xs text-neutral-500">
-            Sitede görünen toplam:{" "}
+            Yüklenen:{" "}
+            <span className="font-semibold text-neutral-900">
+              {visibleCount}
+            </span>
+            {" / "}
             <span className="font-semibold text-neutral-900">
               {totalCount}
             </span>
@@ -495,12 +510,12 @@ export default function Gallery({ isAdmin }: GalleryProps) {
           </div>
 
           <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-xs text-neutral-500">
-            Ölçüsü eksik:{" "}
+            Bu ekranda ölçüsü eksik:{" "}
             <span className="font-semibold text-neutral-900">
               {missingDimensionCount}
             </span>
             {" · "}
-            Hafif thumbnail eksik:{" "}
+            Thumbnail eksik:{" "}
             <span className="font-semibold text-neutral-900">
               {missingThumbnailCount}
             </span>
@@ -511,7 +526,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       {isAdmin && hasOptimizationWork && (
         <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-neutral-200 bg-white p-3 md:flex-row md:items-center md:justify-between">
           <p className="text-xs text-neutral-500">
-            Mobil performansı artırmak için eski görsellerin küçük kart
+            Mobil performansı artırmak için görünen görsellerin küçük kart
             versiyonunu üret.
           </p>
 
@@ -535,7 +550,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
 
       {works.length === 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center text-neutral-500">
-          Henüz bir şey yüklenmedi.
+          Yükleniyor...
         </div>
       ) : (
         <div
@@ -567,7 +582,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
                   favorite={Boolean(work.favorite)}
                   disliked={Boolean(work.disliked)}
                   canFavorite={isAdmin}
-                  priority={itemIndex < 2}
+                  priority={columnIndex === 0 && itemIndex < 1}
                   onFavorite={() => handleFavorite(work)}
                   onDislike={() => handleDislike(work)}
                   onOpen={() => setSelectedWork(work)}
@@ -576,6 +591,14 @@ export default function Gallery({ isAdmin }: GalleryProps) {
             </div>
           ))}
         </div>
+      )}
+
+      {works.length < totalCount && (
+        <div
+          ref={loadMoreRef}
+          className="h-16 w-full"
+          aria-hidden="true"
+        />
       )}
 
       <Lightbox
