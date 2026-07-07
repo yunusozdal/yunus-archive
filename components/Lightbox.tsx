@@ -57,46 +57,32 @@ export default function Lightbox({
           ✕
         </button>
 
-        <div className="flex max-h-[78vh] items-center justify-center bg-neutral-100">
+        <div className="flex max-h-[82vh] items-center justify-center bg-neutral-100">
           {work.media_type === "video" ? (
             <video
               src={work.media_url}
               controls
               playsInline
               preload="metadata"
-              className="max-h-[78vh] w-full object-contain"
+              className="max-h-[82vh] w-full object-contain"
             />
           ) : (
             <img
               src={work.media_url}
-              alt={work.title}
-              className="max-h-[78vh] w-full object-contain"
+              alt=""
+              className="max-h-[82vh] w-full object-contain"
             />
           )}
         </div>
 
-        <div className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-neutral-950">
-              {work.title}
-            </h2>
-
-            {work.media_date && (
-              <p className="mt-1 text-sm text-neutral-500">
-                {work.media_date}
-              </p>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            {canDelete && (
-              <button
-                onClick={onDelete}
-                className="rounded-full border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
-              >
-                Delete
-              </button>
-            )}
+        {canDelete && (
+          <div className="flex justify-end gap-2 p-4">
+            <button
+              onClick={onDelete}
+              className="rounded-full border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+            >
+              Delete
+            </button>
 
             <a
               href={work.media_url}
@@ -107,7 +93,7 @@ export default function Lightbox({
               Open
             </a>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
