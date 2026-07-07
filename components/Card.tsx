@@ -9,8 +9,10 @@ type CardProps = {
   mediaType: "image" | "video";
   thumbnailUrl?: string | null;
   favorite?: boolean;
+  disliked?: boolean;
   canFavorite?: boolean;
   onFavorite?: () => void;
+  onDislike?: () => void;
   onOpen: () => void;
 };
 
@@ -20,8 +22,10 @@ export default function Card({
   mediaType,
   thumbnailUrl,
   favorite = false,
+  disliked = false,
   canFavorite = false,
   onFavorite,
+  onDislike,
   onOpen,
 }: CardProps) {
   const isVideo = mediaType === "video";
@@ -61,7 +65,13 @@ export default function Card({
     <div
       ref={cardRef}
       onClick={onOpen}
-      className="group cursor-pointer overflow-hidden rounded-md border border-neutral-200 bg-white transition hover:border-red-500 md:rounded-xl [content-visibility:auto] [contain-intrinsic-size:220px]"
+      className={`group cursor-pointer overflow-hidden rounded-md border bg-white transition md:rounded-xl [content-visibility:auto] [contain-intrinsic-size:220px] ${
+        disliked
+          ? "border-neutral-200 opacity-45"
+          : favorite
+          ? "border-red-500"
+          : "border-neutral-200 hover:border-red-500"
+      }`}
       style={{ marginBottom: "6px" }}
     >
       <div className="relative overflow-hidden bg-neutral-100">
@@ -99,31 +109,39 @@ export default function Card({
           </div>
         )}
 
-        <div className="absolute left-1 top-1 rounded-full bg-white/95 px-1.5 py-0.5 text-[8px] font-medium text-red-600 md:px-2 md:text-xs">
-          {isVideo ? "Video" : "Image"}
-        </div>
-
         {canFavorite && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onFavorite?.();
-            }}
-            className={`absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full text-xs transition md:h-8 md:w-8 md:text-sm ${
-              favorite
-                ? "bg-red-600 text-white"
-                : "bg-white text-red-600 hover:bg-red-50"
-            }`}
-          >
-            {favorite ? "♥" : "♡"}
-          </button>
-        )}
+          <div className="absolute right-1 top-1 flex flex-col gap-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onFavorite?.();
+              }}
+              className={`flex h-6 w-6 items-center justify-center rounded-full text-xs transition md:h-8 md:w-8 md:text-sm ${
+                favorite
+                  ? "bg-red-600 text-white"
+                  : "bg-white text-red-600 hover:bg-red-50"
+              }`}
+              title="Favorite"
+            >
+              {favorite ? "♥" : "♡"}
+            </button>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-3 bg-gradient-to-t from-black/60 to-transparent px-2 pb-2 pt-8 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-          <p className="truncate text-[9px] font-medium text-white md:text-xs">
-            {title}
-          </p>
-        </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDislike?.();
+              }}
+              className={`flex h-6 w-6 items-center justify-center rounded-full text-xs transition md:h-8 md:w-8 md:text-sm ${
+                disliked
+                  ? "bg-neutral-900 text-white"
+                  : "bg-white text-neutral-700 hover:bg-neutral-100"
+              }`}
+              title="Dislike"
+            >
+              ↓
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

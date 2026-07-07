@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import Card from "./Card";
 import Lightbox from "./Lightbox";
-import { deleteWork, getWorks, toggleFavorite } from "../lib/storage";
+import {
+  deleteWork,
+  getWorks,
+  toggleDislike,
+  toggleFavorite,
+} from "../lib/storage";
 
 type Work = {
   id: string;
@@ -15,6 +20,7 @@ type Work = {
   image_url?: string;
   created_at: string;
   favorite?: boolean;
+  disliked?: boolean;
 };
 
 type GalleryProps = {
@@ -55,13 +61,19 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     return new Date(year, month - 1, day).getTime();
   }
 
+  function getPriority(work: Work) {
+    if (work.favorite) return 0;
+    if (work.disliked) return 2;
+    return 1;
+  }
+
   function sortWorks(items: Work[]) {
     return [...items].sort((a, b) => {
-      const favoriteA = Boolean(a.favorite);
-      const favoriteB = Boolean(b.favorite);
+      const priorityA = getPriority(a);
+      const priorityB = getPriority(b);
 
-      if (favoriteA !== favoriteB) {
-        return Number(favoriteB) - Number(favoriteA);
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
       }
 
       const dateA = parseMediaDate(a.media_date);
@@ -72,8 +84,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       }
 
       return (
-        new Date(b.created_at).getTime() -
-        new Date(a.created_at).getTime()
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
     });
   }
@@ -97,6 +108,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       media_type: work.media_type || "image",
       thumbnail_url: work.thumbnail_url || null,
       favorite: Boolean(work.favorite),
+      disliked: Boolean(work.disliked),
     }));
 
     setWorks(sortWorks(normalized));
@@ -118,7 +130,11 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       sortWorks(
         prev.map((item) =>
           item.id === work.id
-            ? { ...item, favorite: !Boolean(item.favorite) }
+            ? {
+                ...item,
+                favorite: !Boolean(item.favorite),
+                disliked: false,
+              }
             : item
         )
       )
@@ -126,7 +142,44 @@ export default function Gallery({ isAdmin }: GalleryProps) {
 
     setSelectedWork((prev) =>
       prev && prev.id === work.id
-        ? { ...prev, favorite: !Boolean(prev.favorite) }
+        ? {
+            ...prev,
+            favorite: !Boolean(prev.favorite),
+            disliked: false,
+          }
+        : prev
+    );
+  }
+
+  async function handleDislike(work: Work) {
+    const success = await toggleDislike(work.id, Boolean(work.disliked));
+
+    if (!success) {
+      alert("Dislike güncellenemedi.");
+      return;
+    }
+
+    setWorks((prev) =>
+      sortWorks(
+        prev.map((item) =>
+          item.id === work.id
+            ? {
+                ...item,
+                disliked: !Boolean(item.disliked),
+                favorite: false,
+              }
+            : item
+        )
+      )
+    );
+
+    setSelectedWork((prev) =>
+      prev && prev.id === work.id
+        ? {
+            ...prev,
+            disliked: !Boolean(prev.disliked),
+            favorite: false,
+          }
         : prev
     );
   }
@@ -183,8 +236,10 @@ export default function Gallery({ isAdmin }: GalleryProps) {
                   mediaType={work.media_type}
                   thumbnailUrl={work.thumbnail_url}
                   favorite={Boolean(work.favorite)}
+                  disliked={Boolean(work.disliked)}
                   canFavorite={isAdmin}
                   onFavorite={() => handleFavorite(work)}
+                  onDislike={() => handleDislike(work)}
                   onOpen={() => setSelectedWork(work)}
                 />
               ))}

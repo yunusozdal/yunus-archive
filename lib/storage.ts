@@ -52,14 +52,35 @@ export async function updateWork(
 
   return true;
 }
+
 export async function toggleFavorite(id: string, currentValue: boolean) {
   const { error } = await supabase
     .from("works")
-    .update({ favorite: !currentValue })
+    .update({
+      favorite: !currentValue,
+      disliked: false,
+    })
     .eq("id", id);
 
   if (error) {
     console.error("Favorite error:", error);
+    return false;
+  }
+
+  return true;
+}
+
+export async function toggleDislike(id: string, currentValue: boolean) {
+  const { error } = await supabase
+    .from("works")
+    .update({
+      disliked: !currentValue,
+      favorite: false,
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Dislike error:", error);
     return false;
   }
 
