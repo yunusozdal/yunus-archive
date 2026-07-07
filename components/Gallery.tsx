@@ -8,6 +8,7 @@ import {
   getWorks,
   toggleDislike,
   toggleFavorite,
+  updateMediaMeta,
 } from "../lib/storage";
 
 type Work = {
@@ -17,6 +18,8 @@ type Work = {
   media_url: string;
   media_type: "image" | "video";
   thumbnail_url?: string | null;
+  media_width?: number | null;
+  media_height?: number | null;
   image_url?: string;
   created_at: string;
   favorite?: boolean;
@@ -31,6 +34,8 @@ export default function Gallery({ isAdmin }: GalleryProps) {
   const [works, setWorks] = useState<Work[]>([]);
   const [selectedWork, setSelectedWork] = useState<Work | null>(null);
   const [columnCount, setColumnCount] = useState(2);
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizeMessage, setOptimizeMessage] = useState("");
 
   useEffect(() => {
     function updateLayout() {
@@ -107,6 +112,8 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       media_url: work.media_url || work.image_url || "",
       media_type: work.media_type || "image",
       thumbnail_url: work.thumbnail_url || null,
+      media_width: work.media_width || null,
+      media_height: work.media_height || null,
       favorite: Boolean(work.favorite),
       disliked: Boolean(work.disliked),
     }));
@@ -117,6 +124,109 @@ export default function Gallery({ isAdmin }: GalleryProps) {
   useEffect(() => {
     loadWorks();
   }, []);
+
+  function getImageDimensions(url: string) {
+    return new Promise<{ width: number; height: number }>((resolve, reject) => {
+      const image = new Image();
+
+      image.onload = () => {
+        resolve({
+          width: image.naturalWidth,
+          height: image.naturalHeight,
+        });
+      };
+
+      image.onerror = () => {
+        reject(new Error("Image dimensions could not be read"));
+      };
+
+      image.src = url;
+    });
+  }
+
+  function getVideoDimensions(url: string) {
+    return new Promise<{ width: number; height: number }>((resolve, reject) => {
+      const video = document.createElement("video");
+
+      video.preload = "metadata";
+      video.muted = true;
+      video.playsInline = true;
+
+      video.onloadedmetadata = () => {
+        resolve({
+          width: video.videoWidth,
+          height: video.videoHeight,
+        });
+      };
+
+      video.onerror = () => {
+        reject(new Error("Video dimensions could not be read"));
+      };
+
+      video.src = `${url}#t=0.1`;
+      video.load();
+    });
+  }
+
+  async function handleOptimizeLayout() {
+    const missingItems = works.filter(
+      (work) => !work.media_width || !work.media_height
+    );
+
+    if (missingItems.length === 0) {
+      setOptimizeMessage("Her şey optimize.");
+      return;
+    }
+
+    setOptimizing(true);
+
+    for (let index = 0; index < missingItems.length; index++) {
+      const work = missingItems[index];
+
+      setOptimizeMessage(
+        `Optimize ediliyor: ${index + 1}/${missingItems.length}`
+      );
+
+      try {
+        const dimensions =
+          work.media_type === "video"
+            ? await getVideoDimensions(work.media_url)
+            : await getImageDimensions(work.media_url);
+
+        if (!dimensions.width || !dimensions.height) {
+          continue;
+        }
+
+        const success = await updateMediaMeta(work.id, {
+          media_width: dimensions.width,
+          media_height: dimensions.height,
+        });
+
+        if (success) {
+          setWorks((prev) =>
+            sortWorks(
+              prev.map((item) =>
+                item.id === work.id
+                  ? {
+                      ...item,
+                      media_width: dimensions.width,
+                      media_height: dimensions.height,
+                    }
+                  : item
+              )
+            )
+          );
+        }
+      } catch (error) {
+        console.error("Optimize error:", work.id, error);
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 60));
+    }
+
+    setOptimizing(false);
+    setOptimizeMessage("Optimize bitti.");
+  }
 
   async function handleFavorite(work: Work) {
     const success = await toggleFavorite(work.id, Boolean(work.favorite));
@@ -203,9 +313,36 @@ export default function Gallery({ isAdmin }: GalleryProps) {
 
   const columns = createColumns(works);
   const gap = columnCount === 2 ? "6px" : "8px";
+  const hasMissingDimensions = works.some(
+    (work) => !work.media_width || !work.media_height
+  );
 
   return (
     <>
+      {isAdmin && hasMissingDimensions && (
+        <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-neutral-200 bg-white p-3 md:flex-row md:items-center md:justify-between">
+          <p className="text-xs text-neutral-500">
+            CLS düşürmek için eski görsel/video ölçülerini bir kere kaydet.
+          </p>
+
+          <div className="flex items-center gap-2">
+            {optimizeMessage && (
+              <span className="text-xs text-neutral-400">
+                {optimizeMessage}
+              </span>
+            )}
+
+            <button
+              onClick={handleOptimizeLayout}
+              disabled={optimizing}
+              className="rounded-full bg-red-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {optimizing ? "Optimizing..." : "Optimize layout"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {works.length === 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center text-neutral-500">
           Henüz bir şey yüklenmedi.
@@ -227,7 +364,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
                 gap,
               }}
             >
-              {column.map((work) => (
+              {column.map((work, itemIndex) => (
                 <Card
                   key={work.id}
                   title={work.title || "Untitled"}
@@ -235,9 +372,12 @@ export default function Gallery({ isAdmin }: GalleryProps) {
                   mediaUrl={work.media_url}
                   mediaType={work.media_type}
                   thumbnailUrl={work.thumbnail_url}
+                  mediaWidth={work.media_width}
+                  mediaHeight={work.media_height}
                   favorite={Boolean(work.favorite)}
                   disliked={Boolean(work.disliked)}
                   canFavorite={isAdmin}
+                  priority={itemIndex < 2}
                   onFavorite={() => handleFavorite(work)}
                   onDislike={() => handleDislike(work)}
                   onOpen={() => setSelectedWork(work)}

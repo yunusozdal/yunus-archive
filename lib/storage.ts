@@ -86,3 +86,34 @@ export async function toggleDislike(id: string, currentValue: boolean) {
 
   return true;
 }
+
+export async function updateMediaMeta(
+  id: string,
+  meta: {
+    media_width: number;
+    media_height: number;
+    thumbnail_url?: string | null;
+  }
+) {
+  const payload: {
+    media_width: number;
+    media_height: number;
+    thumbnail_url?: string | null;
+  } = {
+    media_width: meta.media_width,
+    media_height: meta.media_height,
+  };
+
+  if ("thumbnail_url" in meta) {
+    payload.thumbnail_url = meta.thumbnail_url ?? null;
+  }
+
+  const { error } = await supabase.from("works").update(payload).eq("id", id);
+
+  if (error) {
+    console.error("Media meta update error:", error);
+    return false;
+  }
+
+  return true;
+}
