@@ -81,13 +81,22 @@ export default function UploadButton() {
     setMessage("");
   }
 
-  async function compressImage(file: File): Promise<File> {
+  async function resizeImage(
+    file: File,
+    maxSize: number,
+    quality: number,
+    suffix: string
+  ): Promise<{
+    file: File;
+    width: number;
+    height: number;
+  } | null> {
     const isImage = file.type.startsWith("image/");
     const isSvg = file.type === "image/svg+xml";
     const isGif = file.type === "image/gif";
 
     if (!isImage || isSvg || isGif) {
-      return file;
+      return null;
     }
 
     return new Promise((resolve) => {
@@ -97,9 +106,13 @@ export default function UploadButton() {
       image.onload = () => {
         URL.revokeObjectURL(objectUrl);
 
-        const maxSize = 2200;
-        let width = image.width;
-        let height = image.height;
+        let width = image.naturalWidth;
+        let height = image.naturalHeight;
+
+        if (!width || !height) {
+          resolve(null);
+          return;
+        }
 
         if (width > height && width > maxSize) {
           height = Math.round((height * maxSize) / width);
@@ -118,7 +131,7 @@ export default function UploadButton() {
         const ctx = canvas.getContext("2d");
 
         if (!ctx) {
-          resolve(file);
+          resolve(null);
           return;
         }
 
@@ -127,48 +140,82 @@ export default function UploadButton() {
         canvas.toBlob(
           (blob) => {
             if (!blob) {
-              resolve(file);
+              resolve(null);
               return;
             }
 
-            const compressedFile = new File(
+            const resizedFile = new File(
               [blob],
-              `${getTitleFromFileName(file.name)}.webp`,
+              `${getTitleFromFileName(file.name)}${suffix}.webp`,
               {
                 type: "image/webp",
                 lastModified: file.lastModified,
               }
             );
 
-            if (compressedFile.size >= file.size) {
-              resolve(file);
-              return;
-            }
-
-            resolve(compressedFile);
+            resolve({
+              file: resizedFile,
+              width,
+              height,
+            });
           },
           "image/webp",
-          0.82
+          quality
         );
       };
 
       image.onerror = () => {
         URL.revokeObjectURL(objectUrl);
-        resolve(file);
+        resolve(null);
       };
 
       image.src = objectUrl;
     });
   }
 
-  async function uploadFileToStorage(file: File) {
+  async function getVideoDimensions(file: File) {
+    return new Promise<{ width: number | null; height: number | null }>(
+      (resolve) => {
+        const video = document.createElement("video");
+        const objectUrl = URL.createObjectURL(file);
+
+        video.preload = "metadata";
+        video.muted = true;
+        video.playsInline = true;
+
+        video.onloadedmetadata = () => {
+          URL.revokeObjectURL(objectUrl);
+
+          resolve({
+            width: video.videoWidth || null,
+            height: video.videoHeight || null,
+          });
+        };
+
+        video.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+
+          resolve({
+            width: null,
+            height: null,
+          });
+        };
+
+        video.src = objectUrl;
+        video.load();
+      }
+    );
+  }
+
+  async function uploadFileToStorage(file: File, folder?: string) {
     const safeName = cleanFileName(file.name);
-    const fileName = `${Date.now()}-${Math.random()
+    const fileName = `${folder ? `${folder}/` : ""}${Date.now()}-${Math.random()
       .toString(36)
       .slice(2)}-${safeName}`;
 
     const { error } = await supabase.storage.from("works").upload(fileName, file, {
       contentType: file.type,
+      cacheControl: "31536000",
     });
 
     if (error) {
@@ -196,15 +243,38 @@ export default function UploadButton() {
       const isVideo = file.type.startsWith("video/");
 
       try {
-        const uploadFile = isImage ? await compressImage(file) : file;
+        let uploadFile = file;
+        let thumbnailUrl: string | null = null;
+        let mediaWidth: number | null = null;
+        let mediaHeight: number | null = null;
 
         if (isImage) {
-          setMessage(
-            `${file.name} sıkıştırıldı: ${formatMB(file.size)} → ${formatMB(
-              uploadFile.size
-            )}`
-          );
-        } else {
+          const compressed = await resizeImage(file, 2200, 0.82, "");
+          const thumbnail = await resizeImage(file, 700, 0.72, "-thumb");
+
+          if (compressed) {
+            uploadFile = compressed.file;
+            mediaWidth = compressed.width;
+            mediaHeight = compressed.height;
+
+            setMessage(
+              `${file.name} sıkıştırıldı: ${formatMB(file.size)} → ${formatMB(
+                uploadFile.size
+              )}`
+            );
+          }
+
+          if (thumbnail) {
+            thumbnailUrl = await uploadFileToStorage(thumbnail.file, "thumbs");
+          }
+        }
+
+        if (isVideo) {
+          const videoSize = await getVideoDimensions(file);
+
+          mediaWidth = videoSize.width;
+          mediaHeight = videoSize.height;
+
           setMessage(`${file.name} yükleniyor...`);
         }
 
@@ -214,11 +284,15 @@ export default function UploadButton() {
           title: getTitleFromFileName(file.name),
           category: "Upload",
           favorite: false,
+          disliked: false,
           year: null,
           image_url: mediaUrl,
           media_url: mediaUrl,
           media_type: isVideo ? "video" : "image",
           media_date: formatFileDate(file),
+          thumbnail_url: thumbnailUrl,
+          media_width: mediaWidth,
+          media_height: mediaHeight,
         });
       } catch (error) {
         console.error("Upload error:", error);
@@ -383,7 +457,7 @@ export default function UploadButton() {
                         ) : (
                           <img
                             src={url}
-                            alt="Preview"
+                            alt=""
                             className="h-40 w-full object-contain"
                           />
                         )}

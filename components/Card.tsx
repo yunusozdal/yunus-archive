@@ -88,12 +88,8 @@ export default function Card({
     <div
       ref={cardRef}
       onClick={onOpen}
-      className={`group cursor-pointer overflow-hidden rounded-md border bg-white transition md:rounded-xl ${
-        disliked
-          ? "border-neutral-200 opacity-45"
-          : favorite
-          ? "border-red-500"
-          : "border-neutral-200 hover:border-red-500"
+      className={`group cursor-pointer overflow-hidden rounded-md border border-neutral-200 bg-white transition hover:border-neutral-300 md:rounded-xl ${
+        disliked ? "opacity-45" : ""
       }`}
       style={{ marginBottom: "6px" }}
     >

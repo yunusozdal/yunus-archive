@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Card from "./Card";
 import Lightbox from "./Lightbox";
+import { supabase } from "../lib/supabase";
 import {
   deleteWork,
   getWorks,
@@ -125,23 +126,129 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     loadWorks();
   }, []);
 
-  function getImageDimensions(url: string) {
-    return new Promise<{ width: number; height: number }>((resolve, reject) => {
+  function cleanFileName(fileName: string) {
+    return fileName
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9-.]/g, "");
+  }
+
+  function needsImageThumbnail(work: Work) {
+    if (work.media_type !== "image") return false;
+    if (!work.thumbnail_url) return true;
+    if (work.thumbnail_url === work.media_url) return true;
+
+    return false;
+  }
+
+  async function createImageThumbnailFromUrl(url: string, title: string) {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error("Image fetch failed");
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+
+    return new Promise<{
+      file: File;
+      width: number;
+      height: number;
+    }>((resolve, reject) => {
       const image = new Image();
 
       image.onload = () => {
-        resolve({
-          width: image.naturalWidth,
-          height: image.naturalHeight,
-        });
+        URL.revokeObjectURL(objectUrl);
+
+        const originalWidth = image.naturalWidth;
+        const originalHeight = image.naturalHeight;
+
+        if (!originalWidth || !originalHeight) {
+          reject(new Error("Image dimensions missing"));
+          return;
+        }
+
+        const maxSize = 700;
+        let width = originalWidth;
+        let height = originalHeight;
+
+        if (width > height && width > maxSize) {
+          height = Math.round((height * maxSize) / width);
+          width = maxSize;
+        }
+
+        if (height >= width && height > maxSize) {
+          width = Math.round((width * maxSize) / height);
+          height = maxSize;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          reject(new Error("Canvas failed"));
+          return;
+        }
+
+        ctx.drawImage(image, 0, 0, width, height);
+
+        canvas.toBlob(
+          (thumbBlob) => {
+            if (!thumbBlob) {
+              reject(new Error("Thumbnail blob failed"));
+              return;
+            }
+
+            const file = new File(
+              [thumbBlob],
+              `${cleanFileName(title || "image")}-thumb.webp`,
+              {
+                type: "image/webp",
+              }
+            );
+
+            resolve({
+              file,
+              width: originalWidth,
+              height: originalHeight,
+            });
+          },
+          "image/webp",
+          0.72
+        );
       };
 
       image.onerror = () => {
-        reject(new Error("Image dimensions could not be read"));
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Image load failed"));
       };
 
-      image.src = url;
+      image.src = objectUrl;
     });
+  }
+
+  async function uploadThumbnail(file: File, workId: string) {
+    const fileName = `thumbs/${workId}-${Date.now()}-${cleanFileName(
+      file.name
+    )}`;
+
+    const { error } = await supabase.storage.from("works").upload(fileName, file, {
+      contentType: file.type,
+      cacheControl: "31536000",
+      upsert: true,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const { data } = supabase.storage.from("works").getPublicUrl(fileName);
+
+    return data.publicUrl;
   }
 
   function getVideoDimensions(url: string) {
@@ -168,64 +275,101 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     });
   }
 
-  async function handleOptimizeLayout() {
-    const missingItems = works.filter(
-      (work) => !work.media_width || !work.media_height
+  async function handleOptimizeMedia() {
+    const itemsToOptimize = works.filter(
+      (work) =>
+        !work.media_width ||
+        !work.media_height ||
+        needsImageThumbnail(work)
     );
 
-    if (missingItems.length === 0) {
-      setOptimizeMessage("Her şey sabit.");
+    if (itemsToOptimize.length === 0) {
+      setOptimizeMessage("Her şey hafif.");
       return;
     }
 
     setOptimizing(true);
 
-    for (let index = 0; index < missingItems.length; index++) {
-      const work = missingItems[index];
+    for (let index = 0; index < itemsToOptimize.length; index++) {
+      const work = itemsToOptimize[index];
 
       setOptimizeMessage(
-        `Sabitleniyor: ${index + 1}/${missingItems.length}`
+        `Optimize ediliyor: ${index + 1}/${itemsToOptimize.length}`
       );
 
       try {
-        const dimensions =
-          work.media_type === "video"
-            ? await getVideoDimensions(work.media_url)
-            : await getImageDimensions(work.media_url);
+        if (work.media_type === "image") {
+          const thumbData = await createImageThumbnailFromUrl(
+            work.media_url,
+            work.title || work.id
+          );
 
-        if (!dimensions.width || !dimensions.height) {
-          continue;
+          let nextThumbnailUrl = work.thumbnail_url || null;
+
+          if (needsImageThumbnail(work)) {
+            nextThumbnailUrl = await uploadThumbnail(thumbData.file, work.id);
+          }
+
+          const success = await updateMediaMeta(work.id, {
+            media_width: thumbData.width,
+            media_height: thumbData.height,
+            thumbnail_url: nextThumbnailUrl,
+          });
+
+          if (success) {
+            setWorks((prev) =>
+              sortWorks(
+                prev.map((item) =>
+                  item.id === work.id
+                    ? {
+                        ...item,
+                        media_width: thumbData.width,
+                        media_height: thumbData.height,
+                        thumbnail_url: nextThumbnailUrl,
+                      }
+                    : item
+                )
+              )
+            );
+          }
         }
 
-        const success = await updateMediaMeta(work.id, {
-          media_width: dimensions.width,
-          media_height: dimensions.height,
-        });
+        if (work.media_type === "video") {
+          const dimensions = await getVideoDimensions(work.media_url);
 
-        if (success) {
-          setWorks((prev) =>
-            sortWorks(
-              prev.map((item) =>
-                item.id === work.id
-                  ? {
-                      ...item,
-                      media_width: dimensions.width,
-                      media_height: dimensions.height,
-                    }
-                  : item
-              )
-            )
-          );
+          if (dimensions.width && dimensions.height) {
+            const success = await updateMediaMeta(work.id, {
+              media_width: dimensions.width,
+              media_height: dimensions.height,
+              thumbnail_url: work.thumbnail_url || null,
+            });
+
+            if (success) {
+              setWorks((prev) =>
+                sortWorks(
+                  prev.map((item) =>
+                    item.id === work.id
+                      ? {
+                          ...item,
+                          media_width: dimensions.width,
+                          media_height: dimensions.height,
+                        }
+                      : item
+                  )
+                )
+              );
+            }
+          }
         }
       } catch (error) {
-        console.error("Optimize error:", work.id, error);
+        console.error("Optimize media error:", work.id, error);
       }
 
-      await new Promise((resolve) => window.setTimeout(resolve, 60));
+      await new Promise((resolve) => window.setTimeout(resolve, 80));
     }
 
     setOptimizing(false);
-    setOptimizeMessage("Sabitlendi.");
+    setOptimizeMessage("Optimize bitti. Sayfayı yenile.");
   }
 
   async function handleFavorite(work: Work) {
@@ -317,11 +461,17 @@ export default function Gallery({ isAdmin }: GalleryProps) {
   const totalCount = works.length;
   const imageCount = works.filter((work) => work.media_type === "image").length;
   const videoCount = works.filter((work) => work.media_type === "video").length;
+
   const missingDimensionCount = works.filter(
     (work) => !work.media_width || !work.media_height
   ).length;
 
-  const hasMissingDimensions = missingDimensionCount > 0;
+  const missingThumbnailCount = works.filter((work) =>
+    needsImageThumbnail(work)
+  ).length;
+
+  const hasOptimizationWork =
+    missingDimensionCount > 0 || missingThumbnailCount > 0;
 
   return (
     <>
@@ -345,19 +495,24 @@ export default function Gallery({ isAdmin }: GalleryProps) {
           </div>
 
           <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-xs text-neutral-500">
-            Ölçüsü eksik dosya:{" "}
+            Ölçüsü eksik:{" "}
             <span className="font-semibold text-neutral-900">
               {missingDimensionCount}
+            </span>
+            {" · "}
+            Hafif thumbnail eksik:{" "}
+            <span className="font-semibold text-neutral-900">
+              {missingThumbnailCount}
             </span>
           </div>
         </div>
       )}
 
-      {isAdmin && hasMissingDimensions && (
+      {isAdmin && hasOptimizationWork && (
         <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-neutral-200 bg-white p-3 md:flex-row md:items-center md:justify-between">
           <p className="text-xs text-neutral-500">
-            Sayfa zıplamasını azaltmak için eski dosya ölçülerini bir kere
-            kaydet.
+            Mobil performansı artırmak için eski görsellerin küçük kart
+            versiyonunu üret.
           </p>
 
           <div className="flex items-center gap-2">
@@ -368,11 +523,11 @@ export default function Gallery({ isAdmin }: GalleryProps) {
             )}
 
             <button
-              onClick={handleOptimizeLayout}
+              onClick={handleOptimizeMedia}
               disabled={optimizing}
               className="rounded-full bg-red-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {optimizing ? "Sabitleniyor..." : "Düzeni Sabitle"}
+              {optimizing ? "Optimize ediliyor..." : "Görselleri Hafiflet"}
             </button>
           </div>
         </div>
