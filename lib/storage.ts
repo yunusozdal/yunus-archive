@@ -1,17 +1,36 @@
 import { supabase } from "./supabase";
 
 export async function getWorks() {
-  const { data, error } = await supabase
-    .from("works")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const pageSize = 1000;
+  let from = 0;
+  let allWorks: any[] = [];
 
-  if (error) {
-    console.error("Works fetch error:", error);
-    return [];
+  while (true) {
+    const { data, error } = await supabase
+      .from("works")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error("Works fetch error:", error);
+      return allWorks;
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    allWorks = [...allWorks, ...data];
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
   }
 
-  return data;
+  return allWorks;
 }
 
 export async function deleteWork(id: string) {

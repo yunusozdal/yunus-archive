@@ -37,6 +37,11 @@ export default function Card({
   const isVideo = mediaType === "video";
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
+  const [imageSrc, setImageSrc] = useState(thumbnailUrl || mediaUrl);
+
+  useEffect(() => {
+    setImageSrc(thumbnailUrl || mediaUrl);
+  }, [thumbnailUrl, mediaUrl]);
 
   const hasRealSize =
     typeof mediaWidth === "number" &&
@@ -114,10 +119,15 @@ export default function Card({
           )
         ) : (
           <img
-            src={thumbnailUrl || mediaUrl}
-            alt={title}
+            src={imageSrc}
+            alt=""
             loading={priority ? "eager" : "lazy"}
             decoding="async"
+            onError={() => {
+              if (imageSrc !== mediaUrl) {
+                setImageSrc(mediaUrl);
+              }
+            }}
             className="absolute inset-0 h-full w-full object-contain transition duration-300 group-hover:scale-[1.02]"
           />
         )}
