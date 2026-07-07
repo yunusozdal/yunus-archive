@@ -174,7 +174,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     );
 
     if (missingItems.length === 0) {
-      setOptimizeMessage("Her şey optimize.");
+      setOptimizeMessage("Her şey sabit.");
       return;
     }
 
@@ -184,7 +184,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       const work = missingItems[index];
 
       setOptimizeMessage(
-        `Optimize ediliyor: ${index + 1}/${missingItems.length}`
+        `Sabitleniyor: ${index + 1}/${missingItems.length}`
       );
 
       try {
@@ -225,7 +225,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
     }
 
     setOptimizing(false);
-    setOptimizeMessage("Optimize bitti.");
+    setOptimizeMessage("Sabitlendi.");
   }
 
   async function handleFavorite(work: Work) {
@@ -313,16 +313,51 @@ export default function Gallery({ isAdmin }: GalleryProps) {
 
   const columns = createColumns(works);
   const gap = columnCount === 2 ? "6px" : "8px";
-  const hasMissingDimensions = works.some(
+
+  const totalCount = works.length;
+  const imageCount = works.filter((work) => work.media_type === "image").length;
+  const videoCount = works.filter((work) => work.media_type === "video").length;
+  const missingDimensionCount = works.filter(
     (work) => !work.media_width || !work.media_height
-  );
+  ).length;
+
+  const hasMissingDimensions = missingDimensionCount > 0;
 
   return (
     <>
+      {isAdmin && (
+        <div className="mb-4 grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-xs text-neutral-500">
+            Sitede görünen toplam:{" "}
+            <span className="font-semibold text-neutral-900">
+              {totalCount}
+            </span>
+            {" · "}
+            Görsel:{" "}
+            <span className="font-semibold text-neutral-900">
+              {imageCount}
+            </span>
+            {" · "}
+            Video:{" "}
+            <span className="font-semibold text-neutral-900">
+              {videoCount}
+            </span>
+          </div>
+
+          <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-xs text-neutral-500">
+            Ölçüsü eksik dosya:{" "}
+            <span className="font-semibold text-neutral-900">
+              {missingDimensionCount}
+            </span>
+          </div>
+        </div>
+      )}
+
       {isAdmin && hasMissingDimensions && (
         <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-neutral-200 bg-white p-3 md:flex-row md:items-center md:justify-between">
           <p className="text-xs text-neutral-500">
-            CLS düşürmek için eski görsel/video ölçülerini bir kere kaydet.
+            Sayfa zıplamasını azaltmak için eski dosya ölçülerini bir kere
+            kaydet.
           </p>
 
           <div className="flex items-center gap-2">
@@ -337,7 +372,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
               disabled={optimizing}
               className="rounded-full bg-red-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {optimizing ? "Optimizing..." : "Optimize layout"}
+              {optimizing ? "Sabitleniyor..." : "Düzeni Sabitle"}
             </button>
           </div>
         </div>
