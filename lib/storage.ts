@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { normalizeWorkMedia } from "./media-url";
 
 export async function getWorksPage(from = 0, to = 59) {
   const { data, error, count } = await supabase
@@ -18,7 +19,7 @@ export async function getWorksPage(from = 0, to = 59) {
   }
 
   return {
-    data: data || [],
+    data: (data || []).map(normalizeWorkMedia),
     count: count || 0,
   };
 }
@@ -44,7 +45,7 @@ export async function getWorks() {
       break;
     }
 
-    allWorks = [...allWorks, ...data];
+    allWorks = [...allWorks, ...data.map(normalizeWorkMedia)];
 
     if (data.length < pageSize) {
       break;

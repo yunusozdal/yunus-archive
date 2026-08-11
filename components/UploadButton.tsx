@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { uploadToR2 } from "../lib/r2-upload";
 
 export default function UploadButton() {
   const [open, setOpen] = useState(false);
@@ -213,18 +214,7 @@ export default function UploadButton() {
       .toString(36)
       .slice(2)}-${safeName}`;
 
-    const { error } = await supabase.storage.from("works").upload(fileName, file, {
-      contentType: file.type,
-      cacheControl: "31536000",
-    });
-
-    if (error) {
-      throw error;
-    }
-
-    const { data } = supabase.storage.from("works").getPublicUrl(fileName);
-
-    return data.publicUrl;
+    return uploadToR2(file, fileName);
   }
 
   async function handleUpload() {
