@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Card from "./Card";
 import Lightbox from "./Lightbox";
-import { supabase } from "../lib/supabase";
+import { uploadToR2 } from "../lib/r2-upload";
 import {
   deleteWork,
   getWorksPage,
@@ -256,19 +256,7 @@ export default function Gallery({ isAdmin }: GalleryProps) {
       file.name
     )}`;
 
-    const { error } = await supabase.storage.from("works").upload(fileName, file, {
-      contentType: file.type,
-      cacheControl: "31536000",
-      upsert: true,
-    });
-
-    if (error) {
-      throw error;
-    }
-
-    const { data } = supabase.storage.from("works").getPublicUrl(fileName);
-
-    return data.publicUrl;
+    return uploadToR2(file, fileName);
   }
 
   function getVideoDimensions(url: string) {
